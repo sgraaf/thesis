@@ -1,0 +1,31 @@
+\chapter{Conclusion}
+\label{ch:conclusion}
+% \todo{Emphasize differences with Sanh paper}
+% \todo{Emphasize differences between ``original'' BookCorpus and our replica}
+% \todo{Give context to this thesis in terms of literature}
+% Seperate ``rewiring'' stage before pre-training using random activations and KD loss.
+% SuperGLUE
+% Squad 2.0
+In this thesis, we investigated the relationship between the transfer dataset $\dataset_T$ used for distilling the knowledge of pre-trained \bertbase into \bertstudent, and the subsequent performance of \bertstudent on the \gls{glue} benchmark and \gls{squad}, both in terms of the size of the transfer dataset, as well as its composition. To this end, we performed two primary experiments in hope of answering our initial research questions (see \cref{sec:research_questions} on \cpageref{pr:rq1,pr:rq2}), which are repeated below for the convenience of the reader:
+\begin{fullwidth}
+    \noindent\begin{tabular}{p{0.075\linewidth} p{0.875\linewidth}}
+        \B{RQ$_1$} & What are the effects of the \emph{size} of the transfer dataset $\dataset_T$ used during pre-training in the Knowledge Distillation process as applied to \bertbase, measured in performance on downstream performance task(s)? \\ \addlinespace
+        \B{RQ$_2$} & What are the effects of the \emph{composition} of the transfer dataset $\dataset_T$ used during pre-training in the Knowledge Distillation as applied to \bertbase, measured in performance on downstream performance task(s)?
+    \end{tabular}
+\end{fullwidth}
+
+The results of our two primary experiments can be summarized as follows:
+\begin{itemize}
+    \item When it comes to the \emph{size} of the transfer dataset $\dataset_T$, we observed competitive performance on \gls{glue} and acceptable performance on \gls{squad} when a transfer dataset is used of ``only'' $\sim \SI{100}{\kilo\nothing}$ sequences or $\sim \SI{4}{\mega\nothing}$ tokens. Whereas performance on \gls{glue} does not seem to benefit much from using a larger transfer dataset, performance on \gls{squad} does. 
+    \item With respect to the \emph{composition} of the transfer dataset $\dataset_T$, we observed diminishing (though still acceptable) performance on \gls{glue} and poor performance on \gls{squad} when a transfer dataset is used that does not consist of proper \gls{nl} (i.e. randomized and/or generated) data. More surprisingly, we observe diminishing performance on \gls{glue} when a less ``informative'' transfer dataset is used for \gls{kd}, whereas for \gls{squad}, we observe an increase in performance.
+\end{itemize}
+
+This now allows us to provide answers to our research questions:
+\begin{itemize}
+    \item The general effect on downstream task performance of using a smaller transfer dataset $\dataset_T$ to distill the knowledge of \bertbase into \bertstudent is a slight decrease in performance\sidenote{Conversely, the opposite is true for using a larger transfer dataset $\dataset_T$.}. We consider the decrease in performance on \gls{glue} to be marginal, especially if you also weigh the costs (both financially and environmentally, as well as temporally). Performance on \gls{squad} benefits significantly more from using a (relatively) larger transfer dataset $\dataset_T$ during pre-training in the \gls{kd} process. This answers \B{RQ$_1$}.
+    \item The general effect on downstream task performance of using a transfer dataset $\dataset_T$ composed of non \gls{nl} data to distill the knowledge of \bertbase into \bertstudent is a significant decrease in performance. This is the case for \gls{glue} (though performance is still acceptable), but even more so for \gls{squad}. This result makes intuitive sense, as you would expect that (pre-)training with less informative data would yield a less informed \gls{nn}. Nonetheless, this answer is by no means conclusive, as there are still aspects unexplored, which we leave for future work. Moreover, for low-resource languages, randomizing and/or generating sequences might still prove worthwhile. This answers \B{RQ$_2$}.
+\end{itemize}
+
+In the spirit of reproducibility, we publish the source code of this research on GitHub\sidenote{\href{https://github.com/sgraaf/Distilling-BERT}{https://github.com/sgraaf/Distilling-BERT}}. Likewise, we publish the \LaTeX\xspace source of this document on GitHub as well\sidenote{\href{https://github.com/sgraaf/thesis}{https://github.com/sgraaf/thesis}}.
+
+Finally, we hope this thesis helps advance the research into Knowledge Distillation in general, but especially as applied to Transformer(-based) architectures like \bertbase. The promise of this \gls{nn} compression method is great, as making the latest and greatest Transformer(-based) architectures more efficient (and thereby: more accessible) is imperative.

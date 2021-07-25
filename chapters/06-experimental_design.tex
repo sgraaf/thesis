@@ -1,0 +1,239 @@
+\chapter{Experimental Design}
+\label{ch:experimental_design}
+\glsresetall
+Before we get to the results of our experiments (our destination, metaphorically speaking), there is one final ``stop'' along the way: our experimental design, which is precisely the subject of this chapter.
+
+As such, we first introduce the \gls{nn} architectures for both our student and teacher networks in \cref{sec:architecture}, highlighting the differences between them in terms of size and inference time. To close out this section, a note on their implementation is given in \cref{subsec:implementation}. 
+
+Next, a mention of the compute power used throughout this research (both during pre-training and fine-tuning) is given in \cref{sec:compute}, followed by description of our pre-training procedure in \cref{sec:training}. This includes a complete overview of all hyperparameters used in \cref{subsec:hyperparameters}, and a description of the data used in \cref{subsec:data}.
+
+Building upon the extensive description of our evaluation methods in \cref{sec:evaluation}, in \cref{sec:fine-tuning_and_evaluation} we review our process of fine-tuning and evaluating our student network. Like in the previous section, this also includes an overview of all hyperparameters used in \cref{subsec:hyperparameters_evaluation}.
+
+Finally, a brief overview of the baselines used throughout this research is given in \cref{sec:baselines}. These baselines serve as a means to compare and contrast the results of our evaluation procedure.
+
+
+\section{Architecture}
+\label{sec:architecture}
+Following the examples of \citet{sun2019patient,sanh2019distilbert}, we use \bertbase for our teacher network and a shallower version of it, using 6 layers instead of 12, for our student network, which we refer to as \bertstudent ($L=6$, $H=768$, $A=12$, $\#P=\SI{67.0}{\mega\nothing}$). \bertstudent is identical to DistilBERT \citep{sanh2019distilbert} in terms of architecture, and is initialized from the $1^{\text{st}}$, $3^{\text{rd}}$, $5^{\text{th}}$, $8^{\text{th}}$, $10^{\text{th}}$, and $12^{\text{th}}$ layers of \bertbase, respectively.
+
+A comparison of \bertbase and \bertstudent in terms of size and inference time is given in \cref{tab:network_comparison}. 
+
+\begin{table}[h]
+    \footnotesize
+    \centering
+    \begin{tabular}{l|c|c|c}
+        \toprule
+        \B{Network} & \B{$\#P$} & \B{Size-on-disk} & \B{Inference time} \\
+        \midrule
+        \bertbase & \SI{109.5}{\mega\nothing} ($1.0 \times$) & \SI{417}{\mega\byte} ($1.0 \times$) & \SI{1.47}{\second} ($1.0 \times$) \\
+        \bertstudent & \SI{66.4}{\mega\nothing} ($1.65 \times$) & \SI{253}{\mega\byte} ($1.65 \times$) & \SI{0.80}{\second} ($1.83 \times$) \\
+        \bottomrule
+    \end{tabular}
+    \caption[Comparison of network size and inference time]{Comparison of network size (in $\#P$ and size-on-disk) and inference time (in s) between our teacher network, \bertbase, and our student network, \bertstudent.}
+    \label{tab:network_comparison}
+\end{table}
+
+From \cref{tab:network_comparison}, we can already see a significant improvement both in terms of size and inference time, though this does not take into account actual performance (in terms of prediction accuracy). We can also note that while \bertstudent ($L = 6$) uses exactly half the number of layers of \bertbase ($L = 12$), it does not have exactly half the number of parameters. This is primarily due to the embedding layers, which are of the same size for both \bertstudent and \bertbase, as can be reviewed in \cref{tab:parameters_comparison}.
+
+\begin{table}[h]
+    \footnotesize
+    \centering
+    \begin{tabular}{l|c|c}
+        \toprule
+        \B{Network} & \B{$\#P_{\text{embedding}}$} & \B{$\#P_{\text{encoder}}$} \\
+        \midrule
+        \bertbase & \SI{23.8}{\mega\nothing} ($1.0 \times$) & \SI{85.1}{\mega\nothing} ($1.0 \times$) \\
+        \bertstudent & \SI{23.8}{\mega\nothing} ($1.0 \times$) & \SI{42.5}{\mega\nothing} ($2.0 \times$) \\
+        \bottomrule
+    \end{tabular}
+    \caption[Comparison of network parameters]{Comparison of network parameters between our teacher network, \bertbase, and our student network, \bertstudent.}
+    \label{tab:parameters_comparison}
+\end{table}
+
+From \cref{tab:parameters_comparison}, we do see that the number of parameters of the encoder $\#P_{\text{encoder}}$ is linear in the number of layers $L$.\sidenote{Note that for \bertbase $\#P_{\text{embedding}}$ and $\#P_{\text{encoder}}$ do not exactly equal $\#P$ (total). This is because of a pooling layer (omitted from \cref{tab:parameters_comparison}), which contains \SI{0.6}{\mega\nothing} parameters. Following the example of \citet{sanh2019distilbert}, this pooling layer is not included in \bertstudent.}
+
+
+\subsection{Implementation}
+\label{subsec:implementation}
+For both our student and teacher networks, as well as our \gls{kd} procedure, we use \href{https://github.com/pytorch/pytorch/}{PyTorch} \citep{paszke2019pytorch} as our deep learning framework of choice. More specifically, for the implementation of our student and teacher networks, we use the increasingly popular \href{https://github.com/huggingface/transformers/}{Transformers} library \citep{wolf2019huggingfaces} by Hugging Face. For the implementation of our \gls{kd} procedure, we have developed and released \emph{\href{https://github.com/sgraaf/pytorch_distillation}{PyTorch Distillation}}, a small extension library for \gls{kd} in the PyTorch deep learning framework.
+
+
+\section{Compute}
+\label{sec:compute}
+For both pre-training and fine-tuning, we use nodes of the \href{https://userinfo.surfsara.nl/systems/lisa/description}{Lisa computing cluster}, which contain 2$\times$ \href{https://ark.intel.com/content/www/us/en/ark/products/120473/intel-xeon-gold-5118-processor-16-5m-cache-2-30-ghz.html}{Intel Xeon Gold 5118 CPUs}, \SI{192}{\giga\byte} RAM and 4$\times$ \href{https://www.nvidia.com/en-gb/titan/titan-rtx/}{\SI{24}{\giga\byte} Nvidia Titan RTX GPUs} each, with a theoretical combined peak performance of about 65 TFLOPS for \gls{fp32}.\sidenote{For a full description of the Lisa system, please refer to \href{https://userinfo.surfsara.nl/systems/lisa/description}{https://userinfo.surfsara.nl/systems/lisa/description}.}
+
+
+\section{Pre-training}
+\label{sec:training}
+For our pre-training of \bertstudent, we adapt \gls{roberta}, the set of best-practices in pre-training BERT(-based) architectures as put forward by \citet{liu2019roberta}. That is to say, unlike the pre-training of \bertbase \citep{devlin2018bert}, \bertstudent is pre-trained without the \gls{nsp} objective, on large mini-batches, using \emph{dynamic} masking of tokens in the input sequence.
+
+Like \citet{jiao2019tinybert,sanh2019distilbert,sun2020mobilebert}, we apply \gls{kd} during pre-training. For our (composite) loss function, we use a combination of the \gls{mlm} objective -- the \gls{ce} of the token as predicted by the student network and the ground truth token -- for the hard target loss (\cref{eq:hard_target_loss}), and the \gls{kld} of the token probability distributions of the student and teacher networks for the soft target loss (\cref{eq:soft_target_loss_scaled}). Additionally, in order to leverage the knowledge encoded in intermediate layers, the cosine embedding loss between the hidden states of the student and teacher networks is used as well (\cref{eq:cosine_embedding_loss}). This all results in the following composite loss function:
+\begin{align}
+    \label{eq:our_combined_loss}
+    \mathcal{L} &= \alpha_\text{soft} \cdot \mathcal{L}_{\text{soft}} + \alpha_\text{hard} \cdot \mathcal{L}_{\text{hard}} + \alpha_\text{cos} \cdot \mathcal{L}_{\text{cos}}, \\
+    &= \alpha_\text{soft} \cdot T^2 \cdot KL\left( \softmax{\vect{z}_s / T} || \softmax{\vect{z}_t / T} \right) \nonumber \\
+    &\quad+ \alpha_\text{hard} \cdot \ce{\softmax{\vect{z}_s}, \vect{y}} \nonumber \\
+    &\quad+ \alpha_\text{cos} \cdot \left( 1 - \cos{\left( \hvect_s, \hvect_t \right)} \right). \nonumber
+\end{align}
+
+\subsection{Hyperparameters}
+\label{subsec:hyperparameters}
+A complete overview of all hyperparameters used during pre-training is presented in \cref{tab:pre-training_hyperparameters}.
+
+\begin{table}[h]
+    \footnotesize
+    \centering
+    \begin{tabular}{l|l}
+        \toprule
+        \B{Name / Symbol} & \B{Value} \\
+        \midrule
+        Teacher network & \bertbase \\
+        Student network & \bertstudent \\
+        \midrule
+        $\alpha_\text{soft}$ & $0.\repeating{333}$ \\
+        $\alpha_\text{hard}$ & $0.\repeating{333}$ \\
+        $\alpha_\text{cos}$ & $0.\repeating{333}$ \\
+        \midrule
+        Optimizer & Adam \citep{kingma2014adam} \\
+        $\alpha$ & $\num{5e-4}$ \\
+        $\beta_1$ & $0.9$ \\
+        $\beta_2$ & $0.98$ \\
+        $\epsilon$ & $\num{1e-6}$ \\
+        \midrule
+        Learning rate policy & 1cycle \citep{smith2018disciplined} \\
+        Min. learning rate & $0$ \\
+        Max. learning rate & $\num{5e-4}$ \\
+        Warmup proportion & $0.05$ \\
+        \midrule
+        Min. sequence length & $12$ \\
+        Max. sequence length & $512$ \\
+        Batch size (per GPU) & $5$ \\
+        N\textsuperscript{\underline{o}} epochs & $3$ \\
+        N\textsuperscript{\underline{o}} gradient accumulation steps & $40$ \\
+        Max. gradient norm & $5.0$ \\
+        \bottomrule
+    \end{tabular}
+    \caption[Overview of pre-training hyperparameters]{Overview of pre-training hyperparameters.}
+    \label{tab:pre-training_hyperparameters}
+\end{table}
+
+\subsection{Data}
+\label{subsec:data}
+Following the pre-training procedures of both \bertbase \citep{devlin2018bert} and DistilBERT \citep{sanh2019distilbert}, we use a concatenation of (a replica of) the \gls{tbc} dataset \citep{zhu2015aligning} and English Wikipedia for our composite pre-training corpus, which totals a little over \SI{3}{\billion} words or \SI{18.4}{\giga\byte} of uncompressed text, as can be reviewed in \cref{tab:dataset_comparison}. Both the \gls{tbc} dataset and English Wikipedia had to be downloaded and pre-processed before being used during pre-training, as described below.
+
+\paragraph{Toronto BookCorpus dataset}
+While used frequently in pre-training \glspl{lm} \citep{radford2018improving,devlin2018bert,yang2019xlnet}, the \gls{tbc} dataset \citep{zhu2015aligning} is no longer publicly available for download due to copyright issues.\sidenote{In fact, \citet{devlin2018bert} admit as much in their \href{https://github.com/google-research/bert/\#pre-training-data}{GitHub repository}, suggesting the use of books from \href{https://www.gutenberg.org/}{Project Gutenberg} instead.} \href{https://www.smashwords.com/}{Smashwords}, the source of books used in the original \gls{tbc} dataset, still exists, however, and thus allows for the creation of a replica. 
+
+Following the procedure of \citet{graaf2019replicating}, we have developed and released \href{https://github.com/sgraaf/Replicate-Toronto-BookCorpus}{\emph{Replicate Toronto BookCorpus}}, a collection of scripts that aim to replicate the original \gls{tbc} dataset \citep{zhu2015aligning} as faithfully as possible. It does so in 3 steps:
+\begin{enumerate}
+    \item Finding those books that meet the criteria (freely available, written in the English language, containing at least 20k words and available to download in plaintext)
+    \item Downloading these books
+    \item Pre-processing these books (tokenizing the sentences, concatenating them into a single file and shuffling the lines)
+\end{enumerate}
+
+Following these steps, we were able to create a faithful replica of the \gls{tbc} dataset that is highly comparable, albeit slightly smaller, to the original in terms of size and other important statistics, as presented in \cref{tab:dataset_comparison}.
+
+\begin{table*}[ht]
+    \footnotesize
+    \centering
+    \begin{tabular}{l|c|c|c|c|c}
+        \toprule
+        \B{Dataset} & \B{Size} & \B{N\textsuperscript{\underline{o}} sentences} & \B{N\textsuperscript{\underline{o}} words} & \B{mean w.p.s.} & \B{median w.p.s.} \\
+        \midrule
+        \gls{tbc} \citep{zhu2015aligning} & \SI{4.7}{\giga\byte} & \SI{74.0}{\mega\nothing} & \SI{984.8}{\mega\nothing} & $13.3$ & $11$ \\
+        \midrule
+        \gls{tbc} replica & \SI{5.1}{\giga\byte} & \SI{65.4}{\mega\nothing} & \SI{897.1}{\mega\nothing} & $13.7$ & $11$ \\
+        \midrule
+        English Wikipedia & \SI{13.3}{\giga\byte} & \SI{109.8}{\mega\nothing} & \SI{2.1}{\billion} & $19.5$ & $18$ \\
+        \midrule
+        \gls{tbc} replica + English Wikipedia & \SI{18.4}{\giga\byte} & \SI{175.2}{\mega\nothing} & \SI{3.0}{\billion} & $17.3$ & $15$ \\
+        \bottomrule
+    \end{tabular}
+    \caption[Comparison of datasets][0.5cm]{Comparison of datasets in terms of size and other important statistics. ``w.p.s.'' stands for ``words per sentence''.}
+    \label{tab:dataset_comparison}
+\end{table*}
+
+\paragraph{English Wikipedia}
+While used at least equally frequently in \gls{lm} pre-training, English Wikipedia also requires much pre-processing after downloading before being usable as a text corpus. For this, we follow the procedure of \citet{graaf2019preprocessing}: After downloading the latest dump of all pages and articles\sidenote{Available at \href{https://dumps.wikimedia.org/enwiki/latest/}{https://dumps.wikimedia.org/enwiki/latest/} for English Wikipedia.}, we extract only the text passages (ignoring any lists, tables and headers)\sidenote{For this, we make use of the \href{https://github.com/attardi/wikiextractor}{WikiExtractor} \citep{Wikiextractor2015}.}, before tokenizing the sentences. Finally, all pages and articles are concatenated into a single text-file, before all lines are shuffled.
+
+As can be reviewed from \cref{tab:dataset_comparison}, this produces a text corpus that contains more than 100M sentences and 2B words. A thing of note is that compared to the \gls{tbc} dataset and its replica, English Wikipedia contains significantly longer sentences on average.
+
+\paragraph{Tokenization}
+In order to prevent bottlenecks during pre-training, we tokenize (i.e. create (sub)word embeddings for) our composite pre-training corpus $\corpus$ before the actual pre-training process, instead of during it (on-the-fly). For this, we make use of WordPiece embeddings \citep{wu2016google} with the exact same vocabulary (i.e. restricted set of tokens) as used by \citet{devlin2018bert} (see \cref{sec:bert}). For the remainder of this thesis, this pre-tokenized, composite pre-training corpus will be referred to simply as ``our corpus'' or $\corpus$.
+
+As an example, three sentences are presented below first in their original form (as a sequence of words and punctuation marks), followed by their tokenized form (as a sequence of tokens):
+% , and finally by its indices (i.e. the index of the tokens in our vocabulary):
+
+\begin{fullwidth}
+    \label{word-token-examples}
+    \noindent\begin{tabular}{ll}
+        \B{Words:} & Many religious theologies do not recognise the “law of Christ”. \\
+        \B{Tokens:} & \cls many religious theo \#\#logies do not recognise the “ law of christ ” . \sep \\ \addlinespace
+        \B{Words:} & ``I'm still concerned about the number of people. \\
+        \B{Tokens:} & \cls `` i ' m still concerned about the number of people . \sep \\ \addlinespace
+        \B{Words:} & No one will find them unless I take them there.'' \\
+        \B{Tokens:} & \cls no one will find them unless i take them there . '' \sep
+    \end{tabular}
+\end{fullwidth}
+
+
+
+\section{Fine-tuning \& Evaluation}
+\label{sec:fine-tuning_and_evaluation}
+\bertstudent is evaluated by measuring its performance on various down-stream tasks, such as \gls{nli} and \gls{qa}. This would both assess the capability of our model to generalize, as well as its aptitude for \gls{nlu}. To this end, for a given down-stream performance task, \bertstudent is first
+fine-tuned (without additional \gls{kd}) on the training set of that task, before evaluating its performance on the development set of that task.
+
+We fine-tune and evaluate our model on the \gls{glue} benchmark (see \cref{subsec:GLUE}), a diverse collection of \gls{nlu} datasets, and \gls{squad}, a sizable \gls{qa} dataset (see \cref{subsec:SQuAD}).
+
+For each down-stream performance task, we do 5 independent runs, using 5 different random seeds. The reported results are the median of the 5 runs. For \gls{glue} we also report a macro score in addition to the scores for each individual task, which is the simple average of these individual task scores.
+
+\subsection{Hyperparameters}
+\label{subsec:hyperparameters_evaluation}
+A complete overview of all hyperparameters used during fine-tuning \& evaluation is presented in \cref{tab:fine-tuning_hyperparameters}.
+
+\begin{table*}[h]
+    \footnotesize
+    \centering
+    \begin{tabular}{l|l|l}
+        \toprule
+        \multirow{2}{*}{\B{Name / Symbol}} & \multicolumn{2}{c}{\B{Value}} \\
+        & \B{GLUE} & \B{SQuAD} \\
+        \midrule
+        Network & \bertstudent & \bertstudent \\
+        \midrule
+        Optimizer & Adam \citep{kingma2014adam} & Adam \citep{kingma2014adam} \\
+        $\alpha$ & $\num{2e-5}$ & $\num{3e-5}$ \\
+        $\beta_1$ & $0.9$ & $0.9$ \\
+        $\beta_2$ & $0.98$ & $0.999$ \\
+        $\epsilon$ & $\num{1e-8}$ & $\num{1e-8}$ \\
+        \midrule
+        Learning rate policy & 1cycle \citep{smith2018disciplined} & 1cycle \citep{smith2018disciplined} \\
+        Min. learning rate & $0$ & $0$ \\
+        Max. learning rate & $\num{2e-5}$ & $\num{3e-5}$ \\
+        Warmup proportion & $0.05$ & $0.05$ \\
+        \midrule
+        Max. sequence length & $128$ & $384$ \\
+        Max. query length & N.A. & $64$ \\
+        Document stride & N.A. & $128$ \\
+        Batch size (per GPU) & $8$ & $24$ \\
+        N\textsuperscript{\underline{o}} epochs & $3$ & $3$ \\
+        N\textsuperscript{\underline{o}} gradient accumulation steps & $1$ & $12$ \\
+        Max. gradient norm & $1.0$ & $1.0$ \\
+        \bottomrule
+    \end{tabular}
+    \caption[Overview of fine-tuning hyperparameters][5mm]{Overview of fine-tuning hyperparameters.}
+    \label{tab:fine-tuning_hyperparameters}
+\end{table*}
+
+
+
+\section{Baselines}
+\label{sec:baselines}
+In order to verify the significance of our results, we compare the performance of \bertstudent to two baselines: 
+
+\begin{description}
+    \item \B{\bertbase} \citep{devlin2018bert} ($L=12$, $H=768$, $A=12$, $\#P=\SI{110}{\mega\nothing}$)
+    \item \B{DistilBERT} \citep{sanh2019distilbert} ($L=6$, $H=768$, $A=12$, $\#P=\SI{67.0}{\mega\nothing}$)
+\end{description}
+
+The first baseline, \bertbase \citep{devlin2018bert}, is our chosen teacher network (i.e. the \gls{nn} we are trying to compress), so any result in terms of size, speed or performance should be compared to this network. The second baseline, DistilBERT \citep{sanh2019distilbert}, is most similar to our research out of the related works discussed in \cref{ch:related_work}. In fact, this research directly builds upon theirs. As such, we compare our results to theirs, in order to assess the effects of the changes in \gls{kd} procedure proposed in this research.

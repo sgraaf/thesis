@@ -1,0 +1,119 @@
+\chapter{Introduction}
+\label{ch:introduction}
+% WHAT: short summary of theory, motivation and contributions
+This chapter (unsurprisingly) serves to introduce the reader to the subject of this Master Thesis. As such, it attempts to answer important ``Wh''-questions, primarily questions pertaining to ``what'' and ``why''. 
+
+In an attempt to answer the ``why'' question, this chapter starts off with the motivation for this thesis in \cref{sec:motivation}. To this end, the reader is presented a big-picture overview of some current trends in the field of \gls{nlp}, and the various (negative) impacts these trends have. Moreover, a promising technique to mediate these effects is introduced, along with some important gaps in knowledge concerning this technique, which will be expanded upon in \cref{ch:background}.
+
+Next, these knowledge gaps are addressed in the form of a set of research questions in \cref{sec:research_questions}. These research questions steer the direction of the current research and should provide a rather concrete answer to the ``what'' question.
+
+Finally, the outline of this thesis is given in \cref{sec:outline}.
+
+
+
+\section{Motivation}
+\label{sec:motivation}
+% WHAT: motivation of the thesis, big picture stuff
+% - models are getting better at the expense of getting bigger
+% - this is bad because of money, environment and democratization
+% - thus we need to make models smaller / more efficient -> neural compression
+% - a lot of unknowns here
+For roughly three years now, the field of \gls{nlp} has seen rapid, significant advances in the domains of \gls{nlu} and \gls{nlg}. These advances have led some to claim that \gls{nlp} is having its ``ImageNet moment'' \citep{ruder2018}, referring to the big boom experienced in the field of \gls{cv} after 2012, when AlexNet \citep{krizhevsky2012imagenet} made significant advances on the ImageNet challenge \citep{russakovsky2015imagenet}. 
+
+This ``big boom'' is exemplified by the frequency at which the \gls{sota} results on various benchmarks and downstream performance tasks like GLUE\sidenote{\color{black}The GLUE leaderboard can be found here: \href{https://gluebenchmark.com/leaderboard}{https://gluebenchmark.com/leaderboard}} \citep{wang2018glue} and SQuAD\sidenote{\color{black}The SQuAD leaderboard can be found here: \href{https://rajpurkar.github.io/SQuAD-explorer/}{https://rajpurkar.github.io/SQuAD-explorer/}} \citep{rajpurkar2016squad,rajpurkar2018know} are achieved, with new leaders on the leaderboard nearly every month or two.
+
+These advances are largely thanks due to so-called ``Transformer''-based architectures \citep{vaswani2017attention}, which dispense with recurrence and convolutions in favor of attention mechanisms. While proven effective, these architectures often-times contain hundreds of millions of -- and more recently trillions of -- parameters, as can be seen in \cref{tab:increasing_model_size}. 
+%As such, they do come at a significant cost in terms of speed (both for training and inference), as well as memory usage and size-on-disk, making them less suitable for use in production environments, but also on (resource-constrained) edge devices, for example.
+As such, they do come at a significant cost in terms of sustainability (both financially and environmentally) and accessibility, both of which we will further expand upon in this section.
+
+% \begin{figure*}[t!]
+%     \includegraphics[width=\linewidth]{figures/03-introduction/increasing_model_size.png}
+%     \caption[Sizes of recent Transformer-based architectures]{Sizes of recent Transformer-based architectures in terms of the number of parameters. Source: \href{https://www.microsoft.com/en-us/research/blog/turing-nlg-a-17-billion-parameter-language-model-by-microsoft/}{Turing-NLG: A 17-billion-parameter language model by Microsoft}.}
+%     \label{fig:increasing_model_size}
+% \end{figure*}
+
+\begin{table}[ht!]
+    \footnotesize
+    \centering
+    \renewcommand{\arraystretch}{1.2}
+    \begin{tabular}{l | l l r }
+        \toprule
+        \B{Paper} & \B{Date} & \B{Name} & \B{Number of Parameters} \\
+        \midrule
+        \citet{radford2018improving} & 06-2018 & GPT & \num{110000000} \\
+        \citet{devlin2018bert} & 10-2018 & \bertlarge & \num{320000000} \\
+        \citet{radford2019language} & 02-2019 & GPT-2 & \num{1542000000} \\
+        \citet{shoeybi2019megatron} & 09-2019 & Megatron & \num{8300000000} \\
+        \citet{raffel2019exploring} & 10-2019 & T5-11B & \num{11000000000} \\
+        \citet{microsoft2020turing} & 02-2020 & Turing-NLG & \num{17000000000} \\
+        \citet{brown2020language} & 05-2020 & GPT-3 & \num{175000000000} \\
+        \citet{fedus2021switch} & 01-2021 & Switch-C & \num{1571000000000}\footnotemark{} \\
+        \bottomrule
+    \end{tabular}
+    \caption[Sizes of recent Transformer(-based) architectures]{Sizes of recent Transformer(-based) architectures in terms of the number of parameters.}
+    \label{tab:increasing_model_size}
+\end{table}
+\footnotetext{The authors leverage the \gls{moe} paradigm to create a \gls{nn} architecture that is sparsely-activated. As such, it contains an outrageous number of parameters, but the computational cost is much smaller and constant.}
+
+The (lack of) sustainability of these \glspl{nn} is exemplified both by the financial costs and the \carbon emissions involved in the process of training these networks. As reported by \citet{devlin2018bert}, their \bertbase network was trained on 4 \href{https://cloud.google.com/tpu/#cloud-tpu-offering}{Cloud TPU v2 Pods} (containing 16 Cloud TPU v2 chips in total) for 4 days (96 hours), which would cost somewhere between \SI{4.1}[\$]{\kilo\nothing} - \SI{5.7}[\$]{\kilo\nothing}\sidenote{\color{black}The most recent prices for TPU pods can be found here: \href{https://cloud.google.com/tpu/pricing}{https://cloud.google.com/tpu/pricing}} and produce about \SI{650}{\kilogram} of \carbon emissions\sidenote{\color{black}\carbon emissions were estimated using the \href{https://mlco2.github.io/impact}{MachineLearning Impact calculator}.} to train. \citep{lacoste2019quantifying,strubell2019energy}
+More recently, \citet{brown2020language} report training their GPT-3 network on \href{https://www.nvidia.com/en-gb/data-center/tesla-v100/}{NVIDIA Tesla V100 GPUs}, which required \num{3.14e23} \gls{flops}. Even with the most optimistic estimation, this would require 304 GPU-\emph{years}, cost roughly \SI{3.0}[\$]{\mega\nothing}\sidenote{\color{black}The most recent prices for GPUs in Google Cloud can be found here: \href{https://cloud.google.com/compute/gpus-pricing}{https://cloud.google.com/compute/gpus-pricing}} and produce about \SI{2.952e5}{\kilogram} of \carbon emissions.
+
+These figures do not even yet include an estimate of the costs involved during the hyper-parameter search, however, nor do they include an estimate of the costs involved during inference (when deployed in a production environment, for example), both of which are expected to be significantly larger (in the long run) than the costs involved in training. As such, the sustainability of these Transformer-based architectures is highly questionable.
+
+Despite recent effort to make these these \glspl{nn} more accessible\sidenote{Examples include the \href{https://huggingface.co/models}{Hugging Face's ``Model Hub''}}, their inherent size make it difficult for anyone without (access to) very expensive hardware to make use of them. While using a huge \gls{nn} like GPT-3 (which contains \SI{175}{\billion} parameters) would be unattainable for anyone without the financial backing of a big technology company, even using a ``smaller'' architecture like \bertbase (which contains ``only'' \SI{110}{\mega\nothing} parameters) isn't easy, nor cheap. This not only hurts the democratization of these technologies, but also their reproducibility, which is a core principal of the scientific method.
+
+This all highlights the increasing importance of methods which aim at making these \glspl{nn} more efficient, exemplified by the recent advent of ``Green AI'' \citep{schwartz2019green}. One such method is \gls{kd} \citep{bucil2006model,hinton2015distilling}, which can best be described as a teacher-student framework for knowledge transfer in which a smaller, untrained student network is trained to mimic a larger, pre-trained teacher network. As such, the larger (pre-trained) teacher network is effectively ``compressed'' into the smaller (untrained) student network. This allows for comparable performance, while requiring less computational resources.
+
+In the last two years or so, there have been various efforts to apply \gls{kd} to Transformer-based architectures \citep{sun2019patient,jiao2019tinybert,sanh2019distilbert,turc2019well}, resulting in \glspl{nn} which are both smaller and faster, while still achieving comparable performance. While promising, this new line of research is still immature, as reflected by the lack of established best-practices when it comes to the various aspects of \gls{kd}, such as: initialization strategy of the student network, composition of the loss function, the amount of data required, the type of data required, the (relative) importance of fine-tuning over pre-training, among others.
+
+\section{Research questions}
+\label{sec:research_questions}
+% WHAT: the research questions this thesis attempts to answer -- should flow from motivation.
+This lack of established best-practices for \gls{kd} as applied to Transformer-based architectures is precisely what this research aims to address. This is still too big a scope for this thesis, however, as there are too many variables to possibly consider. As such, instead of investigating the effects of all possible aspects of \gls{kd} as applied to a variety of Transformer-based architectures, we will first select a specific Transformer-based architecture for the purposes of this thesis, followed by the selection of a more narrow set of aspects of \gls{kd} to consider.
+
+While the biggest \glspl{nn} (containing hundreds of billions of parameters) like GPT-3 by \citet{brown2020language} stand to gain the most from being compressed, this research focuses its efforts solely on the popular \bertbase network by \citet{devlin2018bert}. The motivation for this choice is three-fold. First, as \bertbase contains ``only'' \SI{110}{\mega\nothing} parameters, it is well within the limits of our (computational) resources to use it in our research. Second, previous research into \gls{kd} as applied to Transformer-based architectures (see \cref{ch:related_work}) also focus their efforts (almost) exclusively on \bertbase (and/or \bertlarge, its ``bigger brother''). Third and last, the \bertbase architecture is a good representation of Transformer-based architectures in general, as it is almost identical to the encoder stack of the original ``Transformer'' architecture by \citet{vaswani2017attention}, differing only in size.
+
+% There are too many different Transformer-based architectures to consider within the scope of this research, however, and thus this research will focus its efforts solely on the popular BERT \citep{devlin2018bert} architecture, as formulated in the following primary research question:
+
+% \begin{fullwidth}
+%     \noindent\begin{tabular}{p{0.075\linewidth} p{0.875\linewidth}}
+%         \B{RQ} & What are the best-practices for Knowledge Distillation as applied to BERT?
+%     \end{tabular}
+% \end{fullwidth}
+
+% \begin{marginfigure}
+%     \includegraphics[width=\linewidth]{figures/03-introduction/bert_teacher_to_student.png}
+%     \caption[Visual representation of KD as applied to BERT]{Visual representation of Knowledge Distillation as applied to BERT}
+%     \label{fig:knowledge_distillation_bert_visual_representation}
+% \end{marginfigure}
+
+When it comes to what aspects of the \gls{kd} process to investigate, this research has settled on the data used during the pre-training stage (i.e. the transfer dataset $\dataset_T$). While \gls{kd} is a method to compress \glspl{nn}, thereby making them more efficient, the \gls{kd} process as employed in previous research itself can be quite inefficient, ironically enough. This is primarily due to the usage of large text corpora in the pre-training stage, which require significant compute. As such, our first research question relates to the size of the transfer dataset $\dataset_T$ used during pre-training in the \gls{kd} process as follows:
+
+\begin{fullwidth}
+    \label{pr:rq1}
+    \noindent\begin{tabular}{p{0.075\linewidth} p{0.875\linewidth}}
+        \B{RQ$_1$} & What are the effects of the \emph{size} of the transfer dataset $\dataset_T$ used during pre-training in the Knowledge Distillation process as applied to \bertbase, measured in performance on downstream performance task(s)?
+    \end{tabular}
+\end{fullwidth}
+
+Another drawback of using large text corpora when it comes to distilling Transformer-based architectures is that corpora that are both high in quality and quantity are scarce. What's more, even when they are available, they often-times require significant pre-processing before they can be used in a \gls{kd}-setting. It is not a strict requirement that proper \gls{nl} data be used in the \gls{kd} process, however. Instead, it might be possible to use synthetic data to transfer the knowledge of the teacher network to the student network. As such, our second research question relates to the composition of the transfer dataset $\dataset_T$ used during pre-training in the \gls{kd} process as follows:
+
+\begin{fullwidth}
+    \label{pr:rq2}
+    \noindent\begin{tabular}{p{0.075\linewidth} p{0.875\linewidth}}
+        \B{RQ$_2$} & What are the effects of the \emph{composition} of the transfer dataset $\dataset_T$ used during pre-training in the Knowledge Distillation as applied to \bertbase, measured in performance on downstream performance task(s)?
+    \end{tabular}
+\end{fullwidth}
+
+
+\section{Outline}
+\label{sec:outline}
+In the following chapter (\cref{ch:background}), the background concepts that this thesis builds upon are presented to the reader. Among others, these background concepts include the Transformer architecture in general and BERT specifically, the neural network compression method known as Knowledge Distillation, and the downstream performance tasks used to evaluate our approach.
+
+\cref{ch:related_work} presents a comprehensive overview of work related to the present research. In other words: research that has to do with Knowledge Distillation applied to Transformer(-based) architectures.
+
+In \cref{ch:experimental_design}, we review our experimental design. This includes our student and teacher \gls{nn} architectures of choice, our pre-training procedure, our evaluation procedure and the baselines to which our results will be compared. Also included in this chapter is a note on compute power, an exhaustive overview of hyperparameters (for both pre-training and evaluation), and a comparison of datasets.
+
+Our experiments and their results are introduced in \cref{ch:experiments}. Our first experiment attempts to answer \B{RQ$_1$}, and, as such, investigates the relationship between the \emph{size} of the transfer dataset $\dataset_T$ and downstream task performance. Conversely, our second experiment attempts to answer \B{RQ$_2$}, and, investigates the effects of the \emph{composition} of the transfer dataset $\dataset_T$ on downstream task performance.
+
+Lastly, our conclusions are presented in \cref{ch:conclusion}.

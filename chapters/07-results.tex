@@ -1,0 +1,503 @@
+\chapter{Results}
+\label{ch:experiments}
+\glsresetall
+Having provided all the necessary concepts and context in the previous chapters, we can now finally get to grips with the heart of this thesis in this chapter: our experiments and their results.
+
+\cref{sec:size_of_transfer_dataset} covers our first experiment, which deals with the size of the transfer dataset $\dataset_T$ used in the pre-training stage and its effects on the performance of the pre-trained \bertstudent on various downstream tasks.
+
+The motivation for this experiment is given in \cref{subsec:size_of_transfer_dataset_motivation}, followed by the methods in \cref{subsec:size_of_transfer_dataset_methods}. Next, the results of our first experiment are presented in \cref{subsec:size_of_transfer_dataset_results}, before wrapping up with a discussion in \cref{subsec:size_of_transfer_dataset_discussion}.
+
+Our second experiment has to do with the relationship between the composition of the transfer dataset $\dataset_T$ used in the pre-training stage and the performance of the pre-trained \bertstudent on various downstream tasks, which is the subject of \cref{sec:composition_of_transfer_dataset}.
+
+The structure of \cref{sec:composition_of_transfer_dataset} is identical to that of our first experiment, starting off with the motivation in \cref{subsec:composition_of_transfer_dataset_motivation}. Second, the methods are given in \cref{subsec:composition_of_transfer_dataset_methods}, followed by the results in \cref{subsec:composition_of_transfer_dataset_results}. Finally, a discussion to our second experiment is given in \cref{subsec:composition_of_transfer_dataset_discussion}.
+
+
+
+
+
+\section{Size of Transfer Dataset $\dataset_T$}
+\label{sec:size_of_transfer_dataset}
+Our first experiment investigates the relationship between the \emph{size} of the transfer dataset $\dataset_T$ (i.e. the \emph{amount} of data) used for \gls{kd} as applied to \bertbase, and the performance of the distilled student network on downstream performance tasks (as described in \cref{sec:evaluation}).
+
+
+
+\subsection{Motivation}
+\label{subsec:size_of_transfer_dataset_motivation}
+% argument: cost
+While proven highly effective at compressing \glspl{nn} with minimal loss in performance, when applied to Transformer networks such as \bertbase, the \gls{kd} process itself can be very costly in terms of the required compute, and thus also financially and environmentally. 
+
+For example, \citet{sanh2019distilbert} report pre-training their DistilBERT network for approximately 90 hours on 8$\times$ \href{https://www.nvidia.com/en-gb/data-center/tesla-v100/}{\SI{16}{\giga\byte} Nvidia Tesla V100 GPUs}. This would produce about 80 kgs of \carbon emissions\sidenote{\carbon emissions were estimated using the \href{https://mlco2.github.io/impact}{MachineLearning Impact calculator}} and cost somewhere between \$534.2-\$1790.2 to train \citep{lacoste2019quantifying,strubell2019energy}. Using nodes of the  Lisa computing cluster (as described in \cref{sec:compute}), replicating their study would take approximately 156 hours\sidenote{A single Nvidia Tesla V100 GPU boasts a theoretical performance of about 14 TFLOPS for \gls{fp32}. As such: \begin{align*}90 \cdot \frac{8 \cdot 14.13}{4 \cdot 16.31} \approx 156 \text{ hours}.\end{align*}} or almost a full week\sidenote{As the maximum duration for a ``job'' on the Lisa computing cluster is $120$ hours ($5$ days), it would technically be impossible for us to fully replicate their study, without workarounds like a checkpoint/restart system.}.
+
+In terms of compute, the ``overhead'' (i.e. logging, loading data, initializing teacher and student networks, saving results, etc.) that comes with training \glspl{nn} in general, and Transformer(-based) architectures specifically, is virtually negligible. As such, this high total compute cost described previously can (almost) entirely be attributed to the size of the (transfer) dataset used to train the \gls{nn} on. In fact, we have found the relationship between the size of the transfer dataset $\dataset_T$ and the duration of the pre-training stage to be almost linear, as illustrated in \cref{fig:size_of_transfer_dataset_duration}.
+
+Like \citet{turc2019well,sun2020mobilebert}, \citet{sanh2019distilbert} opted for a concatenation of the \gls{tbc} dataset and English Wikipedia for their transfer dataset, which is the exact same data that BERT \citep{devlin2018bert} (their chosen teacher network) was (pre-)trained on.
+
+While in a \gls{kd} setting it might seem intuitive to pre-train the student network on the same dataset as the teacher network was pre-trained on (after all: the teacher network is supposed to perform well on this dataset), this is not a strict requirement. In fact, to the best of our knowledge, in the context of Transformer(-based) networks like \bertbase, the relationship between the size of the transfer dataset $\dataset_T$ used for \gls{kd} and the performance of the distilled student network on downstream performance tasks has not been studied yet.
+
+This begs the question: would it be possible to perform \gls{kd} on a Transformer(-based) \glspl{nn} like \bertbase using a smaller transfer dataset $\dataset_T$ and what are the effects on the knowledge transferred from the teacher network to the student network (as measured by proxy in terms of downstream task performance)?
+
+This gap in knowledge is exactly what this experiment aims to address, by distilling the knowledge of our teacher network \bertbase multiple times into our student network \bertstudent, using a transfer dataset $\dataset_T$ of various sizes (see \cref{subsec:size_of_transfer_dataset_methods}) and reporting the results on downstream performance tasks (see \cref{subsec:size_of_transfer_dataset_results}).
+
+
+
+\subsection{Methods}
+\label{subsec:size_of_transfer_dataset_methods}
+For the purposes of assessing the relationship between the size of the transfer dataset used for \gls{kd} and performance of the distilled student network on downstream performance tasks, we take three random samples (without replacement) from our corpus $\corpus$ (see \cref{subsec:data}) using three different sample sizes, resulting in three differently sized transfer datasets $\dataset_T^N$, where $N$ refers to the sample size used to create that transfer dataset. These three differently sized transfer datasets $\dataset_T^N$ are then the conditions of the current experiment.
+
+The sample sizes used for the random sampling from our corpus are proportional to its size (which consists of $109.3$M \emph{sequences} or $4.0$B \emph{tokens}) by different orders of magnitude: we take a first random sample that is $10$\% of its size ($10.9$M sequences or $402.6$M tokens), a second random sample that is $1$\% of its size ($1.1$M sequences or $40.3$M tokens), and a third and final random sample that is $0.1$\% of its size ($109.4$K sequences or $4.0$M tokens), as summarized in \cref{tab:dataset_portions_comparison}.
+
+\begin{table}[ht!]
+    \footnotesize
+    \centering
+    \begin{tabular}{l|c|c|c}
+        \toprule
+        \B{Dataset} & \B{Size} & \B{N\textsuperscript{\underline{o}} sequences} & \B{N\textsuperscript{\underline{o}} tokens} \\
+        \midrule
+        $\corpus$ & \SI{20.0}{\giga\byte} & \SI{109.3}{\mega\nothing} & \SI{4.0}{\billion} \\
+        \midrule
+        $\dataset_T^{10\%}$ & \SI{2.0}{\giga\byte} & \SI{10.9}{\mega\nothing} & \SI{402.6}{\mega\nothing} \\
+        \midrule
+        $\dataset_T^{1\%}$ & \SI{204.8}{\mega\byte} & \SI{1.1}{\mega\nothing} & \SI{40.3}{\mega\nothing} \\
+        \midrule
+        $\dataset_T^{0.1\%}$ & \SI{20.6}{\mega\byte} & \SI{109.4}{\kilo\nothing} & \SI{4.0}{\mega\nothing} \\
+        \bottomrule
+    \end{tabular}
+    \caption[Comparison of the dataset proportions]{Comparison between our corpus and our transfer datasets (which are differently sized random samples of our corpus).}
+    \label{tab:dataset_portions_comparison}
+\end{table}
+
+Following the pre-training procedure set out in \cref{sec:training}, we were able to distill the knowledge of our teacher network \bertbase into our student network \bertstudent multiple times using the three different transfer datasets. A plot of the duration (in seconds) of the pre-training stage for each of these transfer datasets is given in \cref{fig:size_of_transfer_dataset_duration}.
+
+\begin{figure}[h!]
+    \begin{center}
+        \input{figures/07-results/duration_plot.pgf}
+    \end{center}
+    \caption[Plot of duration of the pre-training stage]{A plot of the duration (in seconds) of the pre-training stage for each transfer dataset (referred to by the sample size used to create that transfer dataset).}
+    \label{fig:size_of_transfer_dataset_duration}
+\end{figure}
+
+% A fourth and final condition included in this experiment is the extreme / special case where no transfer dataset is used (i.e. the size of the transfer dataset is ``$0$''), labeled as $\dataset_T^0$ . With this condition, after being initialized from the layers of the teacher network \bertbase, \bertstudent does not undergo any pre-training. This condition serves to assess the relative importance of pre-training in general, irrespective of the size of the transfer dataset used.
+
+For all three experimental conditions, \bertstudent is fine-tuned \& evaluated according to the procedure put forward in \cref{sec:evaluation}.
+
+
+
+
+
+\subsection{Results}
+\label{subsec:size_of_transfer_dataset_results}
+\subsubsection{GLUE}
+The performance of our distilled student network \bertstudent on the \gls{glue} benchmark for the three experimental conditions are given in \cref{tab:amount_of_data_glue_results}. As a reminder to the reader, a description of each \gls{glue} task, along with some relevant statistics are given in \cref{subsec:GLUE}, specifically \cref{tab:glue_datasets}.
+
+\begin{table*}[ht!]
+    \footnotesize
+    \centering
+    \renewcommand{\arraystretch}{1.5}
+    \begin{tabular}{l c | c | c c c c c c c c c c}
+        \toprule
+        \B{Network} & \B{Transfer dataset} & \B{Score} & CoLA & MNLI & MRPC & QNLI & QQP & RTE & SST-2 & STS-B & WNLI  \\
+        \midrule
+        \multicolumn{12}{l}{\emph{Ours:}} \\
+        \multirow{4}{*}{\bertstudent} & $\dataset_T^{10\%}$ & \B{72.5} & 42.6 & 80.4 & 76.4 & 85.8 & 87.0 & 56.7 & 90.3 & 82.5 & 50.7 \\
+        & $\dataset_T^{1\%}$ & \B{72.4} & 37.3 & 79.6 & 76.4 & 86.4 & 87.2 & 58.1 & 89.9 & 81.7 & 54.9 \\
+        & $\dataset_T^{0.1\%}$ & \B{70.0} & 25.2 & 78.8 & 75.6 & 85.0 & 86.9 & 59.2 & 89.1 & 74.0 &	56.3 \\
+        % & $\dataset_T^0$ & \B{60.2} & 0.0 & 79.1 & 75.7 & 85.3 & 86.7 & 54.2 & 89.3 & 15.1 & 56.3 \\
+        \midrule
+        \multicolumn{12}{l}{\emph{Baselines:}} \\
+        \multicolumn{2}{l|}{\bertbase \citep{devlin2018bert}} & \B{74.9} & 49.2 & 80.8 & 87.4 & 87.5 & 86.4 & 61.7 & 92.0 & 83.8 & 45.1 \\
+        \multicolumn{2}{l|}{DistilBERT \citep{sanh2019distilbert}} & \B{74.3} & 43.6 & 79.0 & 87.5 & 85.3 & 84.9 & 59.9 & 90.7 & 81.2 & 56.3 \\
+        \bottomrule 
+    \end{tabular}
+    \caption[Comparison of performance on GLUE using differently sized transfer datasets][5mm]{Comparison of performance on the GLUE benchmark using transfer datasets of various sizes. Results of \bertbase and DistilBERT as reported by \citet{sanh2019distilbert}.}
+    \label{tab:amount_of_data_glue_results}
+\end{table*}
+
+From \cref{tab:amount_of_data_glue_results} we can infer that \bertstudent is able to retain 90+\% of the performance of its teacher, \bertbase \citep{devlin2018bert}, even when a transfer dataset is used that is only \SI{0.1}{\percent} of the size of the (transfer) dataset as used by \citet{devlin2018bert,sanh2019distilbert}. When compared to DistilBERT \citep{sanh2019distilbert}, \bertstudent achieves \SI{98}{\percent} of its performance, despite using a much smaller transfer dataset (as little as 1\% proportionally). 
+% Moreover, even when no training data is used and \bertstudent is only fine-tuned on the given downstream performance task, it is still able to achieve \SI{80}{\percent} of the performance of \bertbase, on average.
+
+Another thing of note is that for some tasks (CoLA and STS-B specifically) the performance of \bertstudent deteriorates as the amount of data used during pre-training decreases. In fact, when excluding CoLA and STS-B from the computation of the macro score, \bertstudent is able to retain 96.9+\% of the performance of its teacher, \bertbase, even for $\dataset_T^{0.1\%}$.
+% no data is used during pre-training.
+
+When less data is used during pre-training, the network has to rely more on the fine-tuning process in order to achieve good downstream task performance. As such, it makes intuitive sense that downstream task performance would decrease as the amount of data used during pre-training decreases, but it does beg the question as to why this is the case only for CoLA and STS-B, and not for the other tasks in the \gls{glue} benchmark.
+
+One possible answer to this question could be that CoLA and STS-B are inherently more difficult than the other tasks in the \gls{glue} benchmark, making them better suited to assess the learned language representations of an \gls{nn} than the other tasks. 
+Another possible answer could be that there is some sort of error somewhere in the fine-tuning procedure for both CoLA and STS-B that is not present in the fine-tuning procedure for the other tasks, the effects of which become clearer as the network relies more on fine-tuning, rather than pre-training.
+
+Whatever the reason is that we observe a significant deterioration in downstream task performance only for CoLA and STS-B, it is worth pointing out that while both these tasks contain relatively little training data (3.7k and 7k examples, respectively) as compared to other tasks like QNLI (105k examples), QQP (364k examples) or MNLI (393k examples), this fails to provide a convincing explanation, as other tasks with even less data like WNLI (634 examples), RTE (2.5k examples) and MRPC (3.7k examples) do not experience this drop in performance.
+
+For CoLA, this significant deterioration in task performance could be explained by its inherent class imbalance. Specifically, \SI{70.4}{\percent} of the examples in the train split are labeled as linguistically ``acceptable'' (majority class), whereas only \SI{29.6}{\percent} of the examples are labeled as ``uncacceptable'' (minority class). When \bertstudent is fine-tuned on the CoLA task without prior pre-training, it simply predicts the majority class \SI{100}{\percent} of the time, thus resulting in a score of 0 (akin to random guessing).
+
+For STS-B, the targets are relatively evenly distributed in $\intervalcc{0, 5}$, while the predictions of \bertstudent are concentrated exclusively in $\intervalcc{0, 0.24}$. As such, it appears that our network suffers from ``overfitting'' in this case, similar to the CoLA task. A convincing explanation as to why \bertstudent seems to overfit eludes us yet, however.
+
+% a plot of the cumulative probability of both the targets and the predictions (as made by \bertstudent) for the development split is given in \cref{fig:STS-B_cdf_plot}.
+
+% \begin{figure}[h!]
+%     \begin{center}
+%         \input{figures/07-results/STS-B_cdf_plot.pgf}
+%     \end{center}
+%     \caption[Plot of CDF of STS-B targets and predictions]{A plot of the cumulative distribution function of the targets and predictions (as made by \bertstudent) for the development split of the STS-B task.}
+%     \label{fig:STS-B_cdf_plot}
+% \end{figure}
+
+% From \cref{fig:STS-B_cdf_plot}, it becomes clear that while 
+
+Another possible explanation for the decrease in downstream task performance for CoLA and STS-B is that, unlike the other tasks in the \gls{glue} benchmark, the scores for both CoLA and STS-B are determined by means of correlation coefficients (as opposed to classification accuracy). While we cannot convincingly claim this to be the underlying cause, it is worth further investigation, as it could point to an inherent limitation of (smaller) Transformer networks \citep{vaswani2017attention}. We leave this for future work.
+
+
+
+\subsubsection{SQuAD}
+The performance of our distilled student network \bertstudent on the \gls{squad} for the three experimental conditions are given are given in \cref{tab:amount_of_data_squad_results}.
+
+\begin{table}[ht!]
+    \footnotesize
+    \centering
+    \renewcommand{\arraystretch}{1.5}
+    \begin{tabular}{l c | c c }
+        \toprule
+        \multirow{2}{*}{\B{Network}} & \multirow{2}{*}{\B{Transfer dataset}} & \multicolumn{2}{c}{\B{Score}} \\
+        & & EM & F1 \\
+        \midrule
+        \multicolumn{4}{l}{\emph{Ours:}} \\
+        \multirow{4}{*}{\bertstudent} & $\dataset_T^{10\%}$ & 56.9 & 68.5 \\
+        & $\dataset_T^{1\%}$ & 54.7 & 66.4 \\
+        & $\dataset_T^{0.1\%}$ & 45.0 & 56.5 \\
+        % & $\dataset_T^0$ & 42.6 & 54.9 \\
+        \midrule
+        \multicolumn{4}{l}{\emph{Baselines:}} \\
+        \multicolumn{2}{l|}{\bertbase \citep{devlin2018bert}} & 73.9 & 82.3 \\
+        \multicolumn{2}{l|}{DistilBERT \citep{sanh2019distilbert}} & 69.6 & 78.7 \\
+        \bottomrule
+    \end{tabular}
+    \caption[Comparison of performance on SQuAD using differently sized transfer datasets]{Comparison of performance on SQuAD using transfer datasets of various sizes. Results of \bertbase and DistilBERT as reported by \citet{sanh2019distilbert}.}
+    \label{tab:amount_of_data_squad_results}
+\end{table}
+
+Unlike the (relative) performance of \bertstudent on \gls{glue}, \cref{tab:amount_of_data_squad_results} shows that on \gls{squad} there is a more significant loss in performance when less data is used during pre-training. 
+
+In the most extreme case, when a transfer dataset is used that is only \SI{0.1}{\percent} of the size of the (transfer) dataset as used by \citet{devlin2018bert,sanh2019distilbert}, \bertstudent is able to achieve \SI{68.7}{\percent} of the performance of its teacher, \bertbase \citep{devlin2018bert}, on average (compared to \SI{80}{\percent} for \gls{glue}). For $\dataset_T^{10\%}$, \bertstudent retains \SI{83.3}{\percent} of the performance of its teacher (compared to \SI{96.8}{\percent} for \gls{glue}).
+
+Another interesting observation is that while \gls{qnli} is effectively a recasting of \gls{squad} (see \cref{subsec:GLUE}, on \cpageref{subsubsec:inference_tasks}), the (relative) performance of \bertstudent on \gls{squad} is significantly worse than on \gls{qnli}. This would suggest that the recasting of \gls{squad} not only changed the nature of the task (\gls{qa} vs. \gls{nli}), but also its inherent difficulty.
+
+
+
+\subsection{Discussion}
+\label{subsec:size_of_transfer_dataset_discussion}
+A plot of the performance of \bertstudent on both \gls{glue} and \gls{squad} combined for the three experimental conditions can be seen in \cref{fig:amount_of_data_barplot}.
+
+\begin{figure}[ht!]
+    \begin{center}
+        \input{figures/07-results/amount_of_data_barplot.pgf}
+    \end{center}
+    \caption[Plot of performance on GLUE and SQuAD using differently sized transfer datasets]{Plot of performance of \bertstudent on GLUE and SQuAD using transfer datasets of various sizes.}
+    \label{fig:amount_of_data_barplot}
+\end{figure}
+
+% From \cref{fig:amount_of_data_barplot}, we can see that when \bertstudent undergoes no pre-training of its own, the resulting performance on downstream tasks in general is still more than acceptable, and for certain specific downstream tasks (e.g. MNLI, MRPC, QNLI, etc.) its performance is even competitive. This would suggest that for certain downstream tasks, one might rely fully on smart initialization and fine-tuning in order to achieve good performance.
+
+From \cref{fig:amount_of_data_barplot}, we can see that the performance of \bertstudent on downstream tasks in general is only marginally worse when pre-trained with a relatively smaller transfer dataset. For certain specific downstream tasks (e.g. MNLI,  QNLI, QQP, RTE, SST-2 and WNLI) its performance is even competitive, as can be observed from \cref{tab:amount_of_data_glue_results,tab:amount_of_data_squad_results}. This is both surprising and impressive, and would suggest that significant gains in terms of efficiency come only at a small cost in terms of performance.
+
+Additionally, from \cref{fig:amount_of_data_barplot} we infer that the additional benefit of pre-training with a transfer dataset larger than $\dataset_T^{0.1\%}$ is marginal for \gls{glue}. Indeed, when \bertstudent is pre-trained using $\dataset_T^{10\%}$ as compared to $\dataset_T^{0.1\%}$, the increase in performance on \gls{glue} is only \SI{3.6}{\percent}. For \gls{glue}, this would suggest that in a \gls{kd} setting, pre-training with a transfer dataset of ``only'' $\sim \SI{100}{\kilo\nothing}$ sequences or $\sim \SI{4}{\mega\nothing}$ tokens is sufficient for good performance.
+
+For \gls{squad}, the story is pretty similar: we observe diminishing returns in performance when a transfer dataset is used for pre-training that is larger than $\dataset_T^{1\%}$. From \cref{tab:amount_of_data_squad_results} we can compute that pre-training with a transfer dataset that is $10 \times$ larger than $\dataset_T^{1\%}$ (i.e. $\dataset_T^{10\%}$) yields an increase in performance of only \SI{3.1}{\percent}. As such, while good performance on \gls{squad} requires a larger transfer dataset during the pre-training stage as compared to \gls{glue}, there seems to be little added value of using a transfer dataset larger than $\sim \SI{1}{\mega\nothing}$ sequences or $\sim \SI{40}{\mega\nothing}$ tokens.
+
+To summarize: we observe diminishing returns in terms of downstream task performance when pre-training with larger transfer datasets. For \gls{glue}, it is sufficient to pre-train with a transfer dataset of ``only'' $\sim \SI{100}{\kilo\nothing}$ sequences or $\sim \SI{4}{\mega\nothing}$ tokens for good performance. For \gls{squad}, there is a benefit to pre-training with a larger transfer dataset, though not larger than $\sim \SI{1}{\mega\nothing}$ sequences or $\sim \SI{40}{\mega\nothing}$ tokens. When it comes to the efficiency-performance trade-off, pre-training with huge transfer datasets is clearly sub-optimal.
+
+
+
+
+
+
+
+
+
+\section{Composition of Transfer Dataset $\dataset_T$}
+\label{sec:composition_of_transfer_dataset}
+% nl data is scarce
+% even when it is available, it requires pre-processing
+% even when it is pre-processed, files are large (sharing is difficult due to bandwith / storage limitations)
+% nlg data hard to come by (especially in non-English)
+% even if it is available, it requires a lot of preprocessing (no plug&play)
+% files are copyrighted and large, sharing underlying statistics is no copyright and smaller
+% nl data might not be strictly necessary; it might even generalize better with non-nl data
+From out first experiment (see \cref{sec:size_of_transfer_dataset}), we have seen that pre-training with a (much) smaller transfer dataset (i.e. \emph{quantity}) does not interfere much with downstream task performance. In this experiment, we will try to see whether varying the composition of the transfer dataset $\dataset_T$ (i.e. \emph{quality}) has any (significant) effects on downstream task performance.
+
+
+
+\subsection{Motivation}
+\label{subsec:composition_of_transfer_dataset_motivation}
+% argument: scarcity + effort + other languages
+% new argument: let's fuck this shit up
+Thus far, we have used only proper \gls{nl} data for our corpus and derived transfer datasets. ``Proper'' in this context means that the dataset consists of sentences that are coherent (i.e. have a proper word order), and feature a ``natural'' composition of words and punctuation marks. Indeed, as described in \cref{subsec:data}, we use a concatenation of the \gls{tbc} dataset and English Wikipedia for our corpus, both of which exclusively contain sentences written in English.
+
+The problem with this strategy, however, is that proper \gls{nl} data is either scarce or requires significant effort in terms of downloading, cleaning and further pre-processing (or both). This is exemplified by our efforts to obtain a corpus that is similar (though not exactly equal) to the one used by \citet{devlin2018bert,sanh2019distilbert} and others, as described in \cref{subsec:data}.
+
+When taking languages other than English into consideration, the challenge of creating a corpus of high quantity and quality becomes even more difficult. Taking Afrikaans as an example: the latest dump of Afrikaans Wikipedia (as of May 2021) is an order of magnitude smaller than Dutch Wikipedia and two orders of magnitude smaller than English Wikipedia\sidenote{As of 05-05-2021, the size of the latest dump of Afrikaans Wikipedia totals \SI{111.28}{\mega\byte} (compressed), whereas the size of the latest dump of Dutch Wikipedia totals \SI{1.55}{\giga\byte} (compressed), and that of English Wikipedia totals \SI{18.53}{\giga\byte} (compressed).}. Similarly, as of May 2021, Project Gutenberg\sidenote{Project Gutenberg is a digital library of over 60000 free e-books, which can be found here: \href{https://www.gutenberg.org/}{https://www.gutenberg.org/}} has only 9 Afrikaans books in its collection, whereas it contains 850 Dutch books and over \SI{50}{\kilo\nothing} books written in English. One final example to further illustrate this point: The latest crawl of Common Crawl\sidenote{Common Crawl is an extremely large corpus of crawled web pages, which is available here: \href{https://commoncrawl.org/}{https://commoncrawl.org/}.\\Statistics relating to the distribution of languages can be found here: \href{https://commoncrawl.github.io/cc-crawl-statistics/plots/languages}{https://commoncrawl.github.io/cc-crawl-statistics/plots/languages}} (as of May 2021) contains \SI{336.5}{\kilo\nothing} pages in Afrikaans, \SI{58.3}{\mega\nothing} pages in Dutch, and \SI{1.4}{\billion} pages in English.
+
+While using a transfer dataset $\dataset_T$ consisting of solely proper \gls{nl} data makes intuitive sense in our context (applying \gls{kd} to \bertbase, which itself was trained solely on \gls{nl} data), this is not a strict requirement. The primary component of \gls{kd} is the soft target loss (see \cref{eq:soft_target_loss}), in which the class probability distributions of the student and teacher networks are compared by means of the \gls{kld}. Theoretically, there is no reason why the outputs of the student and teacher networks cannot be compared for arbitrary input data. As such, it might be possible to use randomized or even generated data for our transfer dataset $\dataset_T$.
+
+This leads us to pose the following question: would it be possible to perform \gls{kd} on a Transformer(-based) \glspl{nn} like \bertbase using a transfer dataset $\dataset_T$ composed of randomized or even generated data and what are the effects on the knowledge transferred from the teacher network to the student network (as measured by proxy in terms of downstream task performance)?
+
+This experiment attempts to answer precisely this question. To this end, we distill the knowledge of our teacher network \bertbase multiple times into our student network \bertstudent, using a transfer dataset $\dataset_T$ of different compositions (see \cref{subsec:composition_of_transfer_dataset_methods}) and reporting the results on downstream performance tasks (see \cref{subsec:composition_of_transfer_dataset_results}).
+
+
+
+\subsection{Methods}
+\label{subsec:composition_of_transfer_dataset_methods}
+In order to assess the effects of the composition of the transfer dataset used for \gls{kd} on the performance of the distilled student network on downstream performance tasks, we first create two new transfer datasets of different compositions. These two new transfer datasets are based on $\dataset_T^{10\%}$ (see \cref{tab:dataset_portions_comparison}), essentially by adding ``noise''. The newly derived transfer datasets are the conditions of the current experiment.
+
+\subsubsection{Randomized data}
+The first new transfer dataset we create is an randomization of $\dataset_T^{10\%}$, in which for each sequence of tokens in $\dataset_T^{10\%}$, the order of the tokens is randomized\sidenote{The positions of the starting classification token \cls and the ending separation token \sep remain fixed and are not randomized.} (i.e. the tokens are shuffled). The pseudo-code for this process is detailed in \cref{alg:randomize_sequences}.
+
+\begin{algorithm}[ht!]
+    \SetArgSty{}
+    \SetKwInOut{KwIn}{Input}
+    \SetKwInOut{KwOut}{Output}
+    
+    \KwIn{Sequences array $\vect{S} = \begin{bsmallmatrix}\svect_1, &  \svect_2, & \cdots, & \svect_N\end{bsmallmatrix}$ of size $N$}
+    \KwOut{Sequences array $\vect{S}' = \begin{bsmallmatrix}\svect'_1, &  \svect'_2, & \cdots, & \svect'_N\end{bsmallmatrix}$ of size $N$}
+    
+    Initialize empty sequences array $\vect{S}' = \begin{bsmallmatrix} \cdot \end{bsmallmatrix}$ of size $N$\;
+     
+    \For{$i \leftarrow 1$ \KwTo $N$}{
+        Update $\svect \leftarrow \vect{S}_i \left( = \begin{bsmallmatrix} \cls & t_2 & t_3 & \cdots & t_{M-2} & t_{M-1} & \sep \end{bsmallmatrix} \right)$\;
+        Initialize empty sequence array $\svect' = \begin{bsmallmatrix} \cdot \end{bsmallmatrix}$ of size $M$\;
+        \BlankLine
+        Update $\svect'_1 \leftarrow \cls$\;
+        Update $\svect'_{2:M-1} \leftarrow shuffle(\svect_{2:M-1})$\;
+        Update $\svect'_M \leftarrow \sep$\;
+        \BlankLine
+        Update $\vect{S}'_i \leftarrow \svect'$
+    }
+    \caption{Randomize (shuffle) sequences}
+    \label{alg:randomize_sequences}
+\end{algorithm}
+
+Using the example sentences of \cref{subsec:data} on \cpageref{word-token-examples} as an example, their randomized counterparts are presented below:
+
+\begin{fullwidth}
+    \noindent\begin{tabular}{ll}
+        \B{Original:} & \cls many religious theo \#\#logies do not recognise the “ law of christ ” . \sep \\
+        \B{Randomized:} & \cls of not do theo religious many \#\#logies . the recognise ” christ law “ \sep \\ \addlinespace
+        \B{Original:} & \cls `` i ' m still concerned about the number of people . \sep \\
+        \B{Randomized:} & \cls m . of i about ' still concerned the " people number \sep \\ 
+        \B{Original:} & \cls no one will find them unless i take them there . '' \sep \\
+        \B{Randomized:} & \cls " them them will i take find no one . there unless \sep
+    \end{tabular}
+\end{fullwidth}
+
+As can be reviewed from the examples above, this randomization destroys any information relating to word order\sidenote{Or rather: token order.}, but preserves all other properties of $\dataset_T^{10\%}$ (like sequence length, composition of tokens, etc.). Ultimately, the resulting transfer dataset (labeled as $\dataset_T^{\text{Rand.}}$) contains sequences that are strictly permutations of the sequences contained in $\dataset_T^{10\%}$.
+
+\subsubsection{Generated data}
+The second new transfer dataset we create consists of entirely generated data (labeled as $\dataset_T^{\text{Gen.}}$). For this, we first compute two statistics of $\dataset_T^{10\%}$, which are then used to generate completely new sequences. This process is further detailed below.
+
+\paragraph{Sequence length}
+The first statistic of $\dataset_T^{10\%}$ we compute is the frequency at which specific sequence lengths occur, such that for any sequence length $l$, $n_l$ denotes the number of times this specific sequence length occurs in $\dataset_T^{10\%}$. These (absolute) sequence length frequencies are then used to compute their relative frequencies, such that for any sequence length $l$, its relative frequency $f_l$ is given by:
+\begin{align*}
+    f_l = \frac{n_l}{\sum_l n_l}.
+\end{align*}
+
+A plot of the \gls{cdf} of these sequence length relative frequencies is presented in \cref{fig:sequence_length_cdf_plot}.
+
+\begin{figure}[ht!]
+    \begin{center}
+        \input{figures/07-results/sequence_length_to_400_cdf_plot.pgf}
+    \end{center}
+    \caption[Plot of CDF of sequence length relative frequencies]{A plot of the \gls{cdf} of the sequence length relative frequencies $f_l$ of $\dataset_T^{10\%}$. Sequence lengths $l > 400$ are omitted from the plot, as these are all outliers with a relative frequency $f_l \leq \num{1.115e-05}$.}
+    \label{fig:sequence_length_cdf_plot}
+\end{figure}
+
+
+
+\paragraph{Token frequencies}
+Similarly, the second statistic of $\dataset_T^{10\%}$ we compute is the frequency at which specific tokens occur, such that for any token $t$, $n_t$ denotes the number of times this specific token occurs in $\dataset_T^{10\%}$. The relative frequency $f_t$ of any token $t$ is given by:
+\begin{align*}
+    f_t = \frac{n_t}{\sum_t n_t}.
+\end{align*}
+
+A plot of the \gls{cdf} of these token relative frequencies is presented in \cref{fig:token_cdf_plot}.
+
+\begin{figure}[ht!]
+    \begin{center}
+        \input{figures/07-results/token_cdf_plot.pgf}
+    \end{center}
+    \caption[Plot of CDF of token relative frequencies]{A plot of the \gls{cdf} of the token relative frequencies $f_t$ of $\dataset_T^{10\%}$.}
+    \label{fig:token_cdf_plot}
+\end{figure}
+
+
+Combining the sequence length relative frequencies $f_l$ with the token relative frequencies $f_t$ now allows us to generate new sequences. The pseudo-code for this process is detailed in \cref{alg:generate_sequences}.
+
+\begin{algorithm}[H]
+    \SetArgSty{}
+    \SetKwInOut{KwIn}{Input}
+    \SetKwInOut{KwOut}{Output}
+    
+    \KwIn{Number of sequences $N$ to generate \newline
+          Sequence length relative frequencies $f_l$ \newline
+          Token relative frequencies $f_t$
+    }
+    \KwOut{Sequences array $\vect{S} = \begin{bsmallmatrix}\svect_1, &  \svect_2, & \cdots, & \svect_N\end{bsmallmatrix}$ of size $N$}
+    
+    Initialize empty sequences array $\vect{S} = \begin{bsmallmatrix} \cdot \end{bsmallmatrix}$ of size $N$\;
+    
+    \For{$i \leftarrow 1$ \KwTo $N$}{ 
+        Pick a sequence length $l$ with relative frequency $f_l$\;
+        Initialize empty sequence array $\svect = \begin{bsmallmatrix} \cdot \end{bsmallmatrix}$ of size $l + 2$\;
+        Update $\svect_1 \leftarrow \cls$\;
+        \For{$j \leftarrow 2$ \KwTo $l + 1$}{ 
+            Pick a token $t$ with relative frequency $f_t$\;
+            Update $\svect_j \leftarrow t$\;
+        }
+        Update $\svect_{l+2} \leftarrow \sep$\;
+        
+        Update $\vect{S}_i \leftarrow \svect$\;
+    }
+    \caption{Generate (new) sequences}
+    \label{alg:generate_sequences}
+\end{algorithm}
+
+Some examples of these newly generated sequences are given below:
+\begin{fullwidth}
+    \begin{itemize}
+        \item \cls in , the which , . but the gun collection . , dust , \sep
+        \item \cls , the , linguistic case a oblique had ram tissue mental which of business , into to for \#\#rin and \sep
+        \item \cls and see or an the \#\#gr with \sep
+    \end{itemize}
+\end{fullwidth}
+
+As can be reviewed from the examples above, generating new sequences using the process as detailed in \cref{alg:generate_sequences} destroys any information relating to the proper ordering of tokens. Furthermore, while the tokens are distributed the same (i.e. have the same relative frequencies) in $\dataset_T^{\text{Gen.}}$ at a macro level, as compared to $\dataset_T^{10\%}$, when looking at the micro level (i.e. individual sequences), we do observe differences. In other words: the newly generated sequences are not proper \gls{nl}.
+
+Finally, a comparison of our original transfer dataset $\dataset_T^{10\%}$, along with the two new transfer datasets $\dataset_T^{\text{Rand.}}$ and $\dataset_T^{\text{Gen.}}$, respectively, in terms of size and other relevant statistics is presented in \cref{tab:dataset_types_comparison}.
+
+\begin{table}[ht!]
+    \footnotesize
+    \centering
+    \begin{tabular}{c|c|c|c}
+        \toprule
+        \B{Transfer dataset} & \B{Size} & \B{N\textsuperscript{\underline{o}} sequences} & \B{N\textsuperscript{\underline{o}} tokens} \\
+        \midrule
+        $\dataset_T^{10\%}$ & \SI{2.0}{\giga\byte} & \SI{10.9}{\mega\nothing} & \SI{402.6}{\mega\nothing} \\
+        \midrule
+        $\dataset_T^{\text{Rand.}}$ & \SI{2.0}{\giga\byte} & \SI{10.9}{\mega\nothing} & \SI{402.6}{\mega\nothing} \\
+        \midrule
+        $\dataset_T^{\text{Gen.}}$ & \SI{2.0}{\giga\byte} & \SI{10.9}{\mega\nothing} & \SI{402.6}{\mega\nothing} \\
+        \bottomrule
+    \end{tabular}
+    \caption[Comparison of transfer datasets]{Comparison of the transfer datasets used in the current experiment (which are of different compositions).}
+    \label{tab:dataset_types_comparison}
+\end{table}
+
+As can be reviewed from \cref{tab:dataset_types_comparison}, all three transfer datasets are of the same size. As such, they only differ in their composition (which, again, is our experimental condition).
+
+
+
+\subsection{Results}
+\label{subsec:composition_of_transfer_dataset_results}
+\subsubsection{GLUE}
+The performance of our distilled student network \bertstudent on the \gls{glue} benchmark for the three transfer datasets are given in \cref{tab:type_of_data_glue_results}.
+
+\begin{table*}[ht!]
+    \footnotesize
+    \centering
+    \renewcommand{\arraystretch}{1.5}
+    \begin{tabular}{c | c | c c c c c c c c c c}
+        \toprule
+        \B{Transfer dataset} & \B{Score} & CoLA & MNLI & MRPC & QNLI & QQP & RTE & SST-2 & STS-B & WNLI  \\
+        \midrule
+        $\dataset_T^{10\%}$ & \B{72.5} & 42.6 & 80.4 & 76.4 & 85.8 & 87.0 & 56.7 & 90.3 & 82.5 & 50.7 \\
+        $\dataset_T^{\text{Rand.}}$ & \B{64.8} & 0.0 & 71.8 & 76.1 & 80.9 & 84.1 & 54.2 & 83.8 & 77.3 & 54.9 \\
+        $\dataset_T^{\text{Gen.}}$ & \B{59.2} & 5.2 & 74.9 & 76.4 & 80.9 & 84.7 & 56.7 & 87.6 & 13.1 & 53.5 \\
+        \bottomrule 
+    \end{tabular}
+    \caption[Comparison of performance on GLUE using differently composed transfer datasets][5mm]{Comparison of performance on the GLUE benchmark using transfer datasets of various compositions.}
+    \label{tab:type_of_data_glue_results}
+\end{table*}
+
+Many observations can be made of the results presented in \cref{tab:type_of_data_glue_results}. We will first look exclusively at the macro score, before looking at the scores for the individual tasks contained in the \gls{glue} benchmark.
+
+First, we observe that the performance of \bertstudent when distilled using either $\dataset_T^{\text{Rand.}}$ or $\dataset_T^{\text{Gen.}}$ is worse than when distilled using $\dataset_T^{10\%}$, though not extremely so. In fact, \gls{kd} using $\dataset_T^{\text{Gen.}}$ results in downstream task performance that is only $\sim \SI{20}{\percent}$ lower (on average) than when using $\dataset_T^{10\%}$, whereas \gls{kd} using $\dataset_T^{\text{Rand.}}$ results in downstream task performance that is only $\sim \SI{10}{\percent}$ lower (again, on average) than when using $\dataset_T^{10\%}$. This result is surprising, as one would expect much worse performance on average when pre-training with a less informative\sidenote{``Less informative'' in this context means that less properties of \gls{nl} data are preserved, like sequence length, token order, distribution of tokens, etc.} transfer dataset.
+
+Moreover, we see a \SI{9.4}{\percent} higher macro score when using randomized sequences as compared to generated sequences. This result is as expected, as the randomized sequences contained in $\dataset_T^{\text{Rand.}}$ are more informative than the generated sequences contained in $\dataset_T^{\text{Gen.}}$.
+
+When looking at the scores for the individual tasks, however, some more nuanced observations and inferences can be made about these results. First, for WNLI we see a \SI{5.5}{\percent}+ \emph{increase} in performance when using either $\dataset_T^{\text{Rand.}}$ or $\dataset_T^{\text{Gen.}}$ over $\dataset_T^{10\%}$ during \gls{kd}. This result is especially surprising, as WNLI is generally considered challenging\sidenote{\citet{devlin2018bert} go so far as to call it ``problematic''.}, which gives rise to the expectation that good performance on WNLI requires a \gls{nn} to be well pre-trained. The challenging nature of WNLI is due to its very small size, imbalanced\sidenote{65\% of the examples in the test set belong the the majority class.} test set and adversarial development set (see \cref{par:wnli} on \cpageref{par:wnli}). 
+
+Next, for most tasks we observe a performance for $\dataset_T^{\text{Rand.}}$ or $\dataset_T^{\text{Gen.}}$ that is comparable to the performance for $\dataset_T^{10\%}$, though often times slightly worse. This again is surprising, for the same reasons it was surprising that the macro score was only slightly lower for both $\dataset_T^{\text{Rand.}}$ and $\dataset_T^{\text{Gen.}}$, as compared to $\dataset_T^{10\%}$.
+
+Third and final, we notice significantly worse performance on CoLA and STS-B for both $\dataset_T^{\text{Rand.}}$ and $\dataset_T^{\text{Gen.}}$, as compared to $\dataset_T^{10\%}$, which aligns well with expectations.
+
+In fact, when excluding CoLA and STS-B from the computation of the macro score, \gls{kd} using $\dataset_T^{\text{Rand.}}$ results in downstream task performance that is only $\sim \SI{4.1}{\percent}$ lower (on average) than when using $\dataset_T^{10\%}$, whereas \gls{kd} using $\dataset_T^{\text{Gen.}}$ results in downstream task performance that is only $\sim \SI{2.4}{\percent}$ lower  (again, on average) than when using $\dataset_T^{10\%}$. This result is highly similar to our first experiment, where it were also precisely CoLA and STS-B that yielded significantly worse results when \bertstudent was pre-trained using a smaller transfer dataset.  This result underscores the importance of finding a convincing explanation as to why only these tasks are so ``difficult'' (or analogously: why the other tasks are so ``easy'').
+
+\subsubsection{SQuAD}
+The performance of our distilled student network \bertstudent on the \gls{squad} for the three transfer datasets  are given in \cref{tab:amount_of_data_squad_results}.
+\begin{table}[ht!]
+    \footnotesize
+    \centering
+    \renewcommand{\arraystretch}{1.5}
+    \begin{tabular}{c | c c }
+        \toprule
+        \multirow{2}{*}{\B{Transfer dataset}} & \multicolumn{2}{c}{\B{Score}} \\
+        & EM & F1 \\
+        \midrule
+        $\dataset_T^{10\%}$ & 56.9 & 68.5 \\
+        $\dataset_T^{\text{Rand.}}$ & 8.7 & 16.2 \\
+        $\dataset_T^{\text{Gen.}}$ &  27.0 & 37.3 \\
+        \bottomrule
+    \end{tabular}
+    \caption[Comparison of performance on SQuAD using differently composed transfer datasets]{Comparison of performance on SQuAD using transfer datasets of various compositions.}
+    \label{tab:type_of_data_squad_results}
+\end{table}
+
+Compared to \gls{glue}, \cref{tab:amount_of_data_squad_results} shows a more significant loss in downstream task performance on \gls{squad} when either $\dataset_T^{\text{Rand.}}$ or $\dataset_T^{\text{Gen.}}$ is used during \gls{kd}, as opposed to when $\dataset_T^{10\%}$ is used in a \gls{kd} setting. Specifically, using $\dataset_T^{\text{Rand.}}$ in a \gls{kd} setting results in downstream task performance that is $\sim \SI{75}{\percent}$ lower than when using $\dataset_T^{10\%}$, whereas \gls{kd} using $\dataset_T^{\text{Gen.}}$ results in downstream task performance that is $\sim \SI{45}{\percent}$ lower than when using $\dataset_T^{10\%}$. Although this is somewhat similar result as observed for our first experiment, the loss in performance here is significantly worse.
+
+What is also interesting about this result is that the performance on \gls{squad} when distilling with  $\dataset_T^{\text{Rand.}}$ is significantly worse (\SI{56.6}{\percent} worse to be precise), than when distilling with $\dataset_T^{\text{Gen.}}$. Not only is this relationship contrary to the relationship observed for \gls{glue} previously in this experiment, but it is also contrary to our expectations (as mentioned previously).
+
+
+
+\subsection{Discussion}
+\todo{Rewrite discussion to make it more ``glass half full'' / optimistic.}
+\todo{Include ``we hebben eraan getrokken totdat het faalt''}
+\label{subsec:composition_of_transfer_dataset_discussion}
+A plot of the performance of \bertstudent on both \gls{glue} and \gls{squad} combined for the two experimental conditions (three if you include the ``original'' transfer dataset $\dataset_T^{10\%}$ as an experimental condition) can be seen in \cref{fig:type_of_data_barplot}.
+
+\begin{figure}
+    \begin{center}
+        \input{figures/07-results/type_of_data_barplot.pgf}
+    \end{center}
+    \caption[Plot of performance on GLUE and SQuAD using differently composed transfer datasets]{Plot of performance of \bertstudent on GLUE and SQuAD using transfer datasets of various compositions.}
+    \label{fig:type_of_data_barplot}
+\end{figure}
+
+\cref{fig:type_of_data_barplot} clearly summarizes our observations and inferences from \cref{tab:type_of_data_glue_results,tab:type_of_data_squad_results}: we observe deteriorating performance on \gls{glue} (on average) when \bertstudent is pre-trained on a transfer dataset that is less informative, though not extremely so. Furthermore, the loss in performance on \gls{squad} when using either $\dataset_T^{\text{Rand.}}$ or $\dataset_T^{\text{Gen.}}$ (as compared to $\dataset_T^{10\%}$) in a \gls{kd} setting is much more significant. This result is also surprising, in that the performance on \gls{squad} for $\dataset_T^{\text{Rand.}}$ is significantly worse than for $\dataset_T^{\text{Gen.}}$.
+
+This does not mean that there is no case to be made for using non-\gls{nl} data in the context of pre-training / distilling Transformer architectures like \bertbase, however. Indeed, for most individual tasks included in the \gls{glue} benchmark, the downstream task performance of our distilled \bertstudent is even competitive.
+
+One possible explanation for the poor performance observed for CoLA, STS-B and SQuAD (beyond those mentioned for our first experiment), is that our chosen loss function composition (see \cref{eq:our_combined_loss}) is not suited for sequences that disperse with word\sidenote{or rather: token.} order. The \gls{mlm} objective (which serves as our hard target loss) specifically does not make sense for unordered sequences. As a reminder to the reader: with the \gls{mlm} objective, one or more tokens in any given sequence is masked out at random, and the objective entails predicting the original token(s), based only on the context. This objective makes sense and is instructive when your input data consists of ordered sequences, but makes no sense and is uninformative when your sequences are unordered. 
+
+Consider an example of an unordered sequence that contains a single masked token:
+\begin{fullwidth}
+    \noindent\begin{tabular}{ll}
+        \B{Unordered:} & \cls . this t a doesn take to \mask out ' figure it \sep
+    \end{tabular}
+\end{fullwidth}
+
+Now consider the exact same sequence, but then ordered:
+\begin{fullwidth}
+    \noindent\begin{tabular}{ll}
+        \B{Ordered:} & \cls it doesn ' t take a \mask to figure this out . \sep
+    \end{tabular}
+\end{fullwidth}
+
+In both cases, the masked word is ``genius''. Not only is it much more difficult to make a correct prediction for unordered sequences in general, but especially for sequences that are less commonplace (which is the case for most of the sequences contained in our corpus). We leave experimentation with different loss function compositions for future work.
+
+Another limitation of our approach is that it still requires a dataset that consists of proper \gls{nl} data to derive the transfer datasets from. This is the case both for randomizing any existing sequences, but also for generating new sequences. While this might not be a problem for high-resource languages (like English and Dutch), it could very well prove problematic for low-resource languages (like Afrikaans).
+
+This limitation also gives rise to additional research questions, such as:
+\begin{itemize}
+    \item Would it be possible to ``bootstrap'' a larger transfer dataset from a smaller one by means of randomizing and/or generating sequences and what would be the effects?
+    \item Would it be possible to create ``hybrid'' transfer datasets (consisting of both proper \gls{nl} sequences, randomized and/or generated sequences) and what would be the effects?
+    \item What is the effect of the size of the ``original'' transfer dataset used for deriving the randomized and/or generated transfer datasets and the quality of these derived transfer datasets (measured by proxy)?
+\end{itemize}
+
+We leave these research questions for future work.
+
+To summarize: while the benefit of pre-training using a transfer dataset that does not consist of proper \gls{nl} data is marginal in general, there might still be a valid use case for it when it comes to low-resource languages.

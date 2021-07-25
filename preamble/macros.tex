@@ -1,0 +1,60 @@
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\score}{score}
+
+\newcommand*{\B}[1]{\ifmmode\bm{#1}\else\textbf{#1}\fi}
+\newcommand*{\I}[1]{\ifmmode\mathit{#1}\else\textit{#1}\fi}
+
+% vectors
+\newcommand{\vect}[1]{\B{#1}}
+\newcommand{\xvect}{\vect{x}\xspace}
+\newcommand{\yvect}{\vect{y}\xspace}
+\newcommand{\cvect}{\vect{c}\xspace}
+\newcommand{\hvect}{\vect{h}\xspace}
+\newcommand{\svect}{\vect{s}\xspace}
+\newcommand{\Wvect}{\vect{W}\xspace}
+
+% math operators
+\newcommand{\logg}[1]{\log{\left({#1}\right)}}
+\newcommand{\expp}[1]{\exp{\left({#1}\right)}}
+\newcommand{\tanhh}[1]{\tanh{\left({#1}\right)}}
+\newcommand{\alignn}[1]{\align\left({#1}\right)}
+\newcommand{\scoree}[1]{\score\left({#1}\right)}
+\newcommand{\loss}[1]{\mathcal{L}\left({#1}\right)}
+\newcommand{\softmax}[1]{\sigma\left({#1}\right)}
+\newcommand{\ce}[1]{\mathcal{H}\left({#1}\right)}
+
+% functions with brackets
+\newcommand{\floor}[1]{\left\lfloor {#1} \right\rfloor}
+\newcommand{\ceil}[1]{\left\lceil{#1}\right\rceil}
+\newcommand{\round}[1]{\left\lfloor{#1}\right\rceil}
+\newcommand{\norm}[1]{\left\lVert{#1}\right\rVert}
+\newcommand{\intervalcc}[1]{\left[{#1}\right]}
+\newcommand{\intervalco}[1]{\left[{#1}\right)}
+\newcommand{\intervaloc}[1]{\left({#1}\right]}
+\newcommand{\intervaloo}[1]{\left({#1}\right)}
+\newcommand{\repeating}[1]{\overline{#1}}
+\newcommand{\sizeof}[1]{\left|{#1}\right|}
+
+% other
+\newcommand{\reals}[1]{\mathbb{R}^{#1}}
+\newcommand{\dataset}{\mathcal{D}\xspace}
+\newcommand{\corpus}{\dataset_\text{Corpus}\xspace}
+
+\newcommand{\redtimes}{\color{red}$\times$\xspace}
+\newcommand{\greencheck}{\color{green}$\checkmark$\xspace}
+
+\newcommand{\carbon}{CO$_{\text{2}}$\xspace}
+
+\newcommand{\bertbase}{BERT$_{\text{BASE}}$\xspace}
+\newcommand{\bertlarge}{BERT$_{\text{LARGE}}$\xspace}
+\newcommand{\bertstudent}{BERT$_{\text{STUDENT}}$\xspace}
+\newcommand{\bertsmall}{BERT$_{\text{SMALL}}$\xspace}
+\newcommand{\berttiny}{BERT$_{\text{TINY}}$\xspace}
+\newcommand{\bertthree}{BERT$_3$\xspace}
+\newcommand{\bertsix}{BERT$_6$\xspace}
+\newcommand{\berttwelve}{BERT$_12$\xspace}
+
+\newcommand{\cls}{\texttt{[CLS]}\xspace}
+\newcommand{\sep}{\texttt{[SEP]}\xspace}
+\newcommand{\mask}{\texttt{[MASK]}\xspace}

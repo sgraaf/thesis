@@ -1,0 +1,20 @@
+\begin{tikzpicture}
+    \tikzstyle{regular}=[draw,minimum width=18mm, minimum height=6mm]
+    \tikzstyle{repeated}=[draw,minimum width=18mm,minimum height=6mm,fill=orange!20]
+    
+    \matrix[column sep=4mm, row sep=5mm]{
+        & \node (encoder) {Encoder}; && \node (decoder) {Decoder}; \\
+        &&& \node[regular] (fc) {FC};\\
+        \node(repeat_encoder) {\(n \times\)}; & \node[repeated] (recurrent_encoder) {Recurrent}; && \node[repeated] (recurrent_decoder) {Recurrent}; && \node(repeat_decoder) {\(n \times\)};\\
+        & \node[regular] (embedding_encoder) {Embedding}; && \node[regular] (embedding_decoder) {Embedding};\\
+        & \node (sources) {Sources}; && \node (targets) {Targets};\\
+    };
+    \begin{scope}[every path/.style={draw, ->, semithick}]
+        \path (sources) -- (embedding_encoder);
+        \path (targets) -- (embedding_decoder);
+        \path (embedding_encoder) -- (recurrent_encoder);
+        \path (embedding_decoder) -- (recurrent_decoder);
+        \path (recurrent_encoder) -- (recurrent_decoder);
+        \path (recurrent_decoder) -- (fc);
+    \end{scope}
+\end{tikzpicture}

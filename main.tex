@@ -1,0 +1,44 @@
+\documentclass[a4paper,justified,marginals=raggedright,nobib,notitlepage,notoc,openany]{tufte-book}
+
+\input{preamble/preamble}
+
+% dev packages
+\usepackage{todonotes}
+
+\title{Distilling BERT: Transfer Dataset Size and Composition Effects}
+\author{Steven van de Graaf}
+\date{\today}
+
+\DeclareRobustCommand{\VAN}[3]{#2} % set up for citation
+
+\begin{document}
+
+\frontmatter
+\pagenumbering{roman}
+% \todototoc
+\listoftodos
+\include{chapters/00-title-page}
+\include{chapters/01-abstract}
+\include{chapters/02-acknowledgements}
+{\hypersetup{hidelinks}  % no link colors for ToC, LoA, LoF and LoT
+\tableofcontents
+\printglossary[title=List of Abbreviations, toctitle=List of Abbreviations, nonumberlist]
+\listoffigures
+\listoftables
+}
+
+\mainmatter
+\pagenumbering{arabic}
+\include{chapters/03-introduction}
+\include{chapters/04-background}
+\include{chapters/05-related_work}
+\include{chapters/06-experimental_design}
+\include{chapters/07-results}
+\include{chapters/08-conclusion}
+
+\backmatter
+\DeclareRobustCommand{\VAN}[3]{#3}
+\bibliography{references}
+\bibliographystyle{apalike}
+
+\end{document}

@@ -1,0 +1,225 @@
+% preamble that loads packages, colors and macros and does general document set-up
+
+% packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel} % i18n
+% typesetting
+% \usepackage{ebgaramond}
+\usepackage{hyperref}
+\usepackage{bookmark}
+\usepackage{url}
+\usepackage{setspace}  % double spacing
+\usepackage{textcomp}  % euro sign
+\usepackage[parfill]{parskip}
+\usepackage{lscape}
+\usepackage{xspace} % adds space after a macro, unless it is followed by certain punctuation marks.
+\usepackage{marginfix}
+% math typesetting
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage[binary-units]{siunitx}
+% tables
+\usepackage{tabulary}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{longtable} 
+% figures
+\usepackage{graphicx}
+\usepackage{pgf}  % PGF support
+\usepackage{svg}  % SVG support
+\usepackage{tikz}
+\usepackage{tikzscale}
+\usepackage{pgfplots}
+% algorithms
+\usepackage{minted}  % code listing
+\usepackage[linesnumbered,ruled,vlined]{algorithm2e}  % algorithms
+% colors
+\usepackage{color}
+\usepackage{xcolor}
+\usepackage{soul}
+% front matter
+\usepackage[nottoc]{tocbibind}
+\usepackage[acronym,nomain,toc]{glossaries}
+% bibliography
+\usepackage{natbib}
+% referencing
+\usepackage[capitalise]{cleveref}
+
+% colors
+\input{preamble/colors}
+
+% macros
+\input{preamble/macros}
+
+\hypersetup{
+    colorlinks,
+    bookmarksdepth=section,
+    linkcolor=linkcolor,
+    citecolor=citecolor,
+    urlcolor=urlcolor
+}
+
+\titleformat{\chapter}
+  {\color{highlightcolor}\Huge\rmfamily\itshape}    % label
+  {\color{highlightcolor}\itshape\HUGE\thechapter~} % number
+  {0pt}                                             % horizontal separation between label and title body
+  {}                                                % before the title body
+  []                                                % after the title body
+
+\titlespacing*{\section}{0pt}{*10}{2.3ex plus .2ex}
+\titlespacing*{\subsection}{0pt}{*5}{1.5ex plus.2ex}
+  
+\setcounter{tocdepth}{1}  % ToC depth (sections)
+\setcounter{secnumdepth}{2}  % section numbering depth, includes subsections
+
+% page numbering
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyhead[RE,RO]{\smallcaps{\newlinetospace{\plaintitle}}\quad\thepage}
+}
+
+\makeatletter
+% Paragraph indentation and separation for normal text
+\renewcommand{\@tufte@reset@par}{%
+  \setlength{\RaggedRightParindent}{0.0pc}%
+  \setlength{\JustifyingParindent}{0pt}% % parindent
+  \setlength{\parindent}{0pt}%
+  \setlength{\parskip}{5pt}%
+}
+\@tufte@reset@par
+
+% Paragraph indentation and separation for marginal text
+\renewcommand{\@tufte@margin@par}{%
+  \setlength{\RaggedRightParindent}{0.0pc}%
+  \setlength{\JustifyingParindent}{0.0pc}%
+  \setlength{\parindent}{24pt}%
+  \setlength{\parskip}{10pt}%
+}
+\makeatother
+
+\glsdisablehyper
+\makeglossaries
+\newacronymstyle{long-short-emph}%
+{%
+  \ifglshaslong{\glslabel}%
+  {% acronym
+   % This is an adaptation of \glsgenacfmt
+    \ifdefempty\glscustomtext
+    {%
+      \ifglsused\glslabel
+      {%
+        \glsifplural
+        {%
+          \glscapscase
+          {%
+            \acronymfont{\glsentryshortpl{\glslabel}}\glsinsert
+          }%
+          {%
+            \acronymfont{\Glsentryshortpl{\glslabel}}\glsinsert
+          }%
+          {%
+            \mfirstucMakeUppercase
+              {\acronymfont{\glsentryshortpl{\glslabel}}\glsinsert}%
+          }%
+        }%
+        {%
+          \glscapscase
+          {%
+            \acronymfont{\glsentryshort{\glslabel}}\glsinsert
+          }%
+          {%
+            \acronymfont{\Glsentryshort{\glslabel}}\glsinsert
+          }%
+          {%
+            \mfirstucMakeUppercase
+              {\acronymfont{\glsentryshort{\glslabel}}\glsinsert}%
+          }%
+        }%
+      }%
+      {%
+        \glsifplural
+        {%
+          \glscapscase
+          {%
+            \emph{\glsentrylongpl{\glslabel}\glsinsert}\space
+            (\firstacronymfont{\glsentryshortpl{\glslabel}})%
+          }%
+          {%
+            \emph{\Glsentrylongpl{\glslabel}{\glsinsert}}\space
+            (\firstacronymfont{\glsentryshortpl{\glslabel}})%
+          }%
+          {%
+            \mfirstucMakeUppercase
+              {\emph{\glsentrylongpl{\glslabel}{\glsinsert}}\space
+               (\firstacronymfont{\glsentryshortpl{\glslabel}})}%
+          }%
+        }%
+        {%
+          \glscapscase
+          {%
+            \emph{\glsentrylong{\glslabel}\glsinsert}\space
+            (\firstacronymfont{\glsentryshort{\glslabel}})%
+          }%
+          {%
+            \emph{\Glsentrylong{\glslabel}\glsinsert}\space
+            (\firstacronymfont{\glsentryshort{\glslabel}})%
+          }%
+          {%
+            \mfirstucMakeUppercase
+             {\emph{\glsentrylong{\glslabel}\glsinsert}\space
+             (\firstacronymfont{\glsentryshort{\glslabel}})}%
+          }%
+        }%
+      }%
+    }%
+    {%
+      \glscustomtext
+    }%
+  }%
+  {% regular term
+    \ifglsused{\glslabel}{\glsgenentryfmt}{\emph{\glsgenentryfmt}}%
+  }%
+}%
+{%
+  \GlsUseAcrStyleDefs{long-short}%
+}
+\setacronymstyle{long-short-emph}
+\loadglsentries[main]{glossary}
+
+\usetikzlibrary{
+    3d,
+    arrows,
+    arrows.meta,
+    backgrounds,
+    bending,
+    calc,
+    chains,
+    decorations.pathmorphing,
+    decorations.pathreplacing,
+    graphs,
+    matrix,
+    patterns,
+    positioning,
+    quotes,
+    shapes.arrows,
+    shapes.geometric,
+    shapes.misc,
+}
+\tikzset{>=latex}
+
+\usepgfplotslibrary{
+    groupplots,
+    dateplot,
+}
+\pgfplotsset{compat=newest}
+
+\DeclareSIUnit{\nothing}{\relax}
+\DeclareSIUnit{\billion}{\text{B}}
+
+\hyphenation{Wiki-pedia}
+
+\newcommand{\noopsort}[2]{#2}
