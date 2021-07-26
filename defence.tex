@@ -1,0 +1,515 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usepackage{caption}
+
+\input{preamble/preamble}
+
+% UvA colors
+\definecolor{UvA_Black}{RGB}{31, 29, 33}
+\definecolor{UvA_Red}{RGB}{188, 0, 49}
+\definecolor{UvA_White}{RGB}{255, 255, 255}
+\definecolor{UvA_Grey15}{RGB}{220, 221, 222}
+\definecolor{UvA_Grey8}{RGB}{235, 235, 236}
+\definecolor{UvA_FNWI_Purple}{RGB}{117, 27, 104}
+
+\setbeamercolor{emph}{fg=UvA_FNWI_Purple}
+\renewcommand<>{\emph}[1]{%
+  {\usebeamercolor[fg]{emph}\only#2{\itshape}#1}%
+}
+
+\DeclareRobustCommand{\VAN}[3]{#2} % set up for citation
+
+\hypersetup{
+    colorlinks,
+    linkcolor=UvA_FNWI_Purple,
+    citecolor=UvA_Black,
+    urlcolor=UvA_FNWI_Purple
+}
+
+% Metropolis beamer theme
+\usetheme[numbering=fraction, block=fill]{metropolis}
+
+% Metropolis beamer theme colors
+\setbeamercolor{progress bar}{fg=UvA_FNWI_Purple}
+\setbeamercolor{normal text}{fg=UvA_Black, bg=UvA_White}
+\setbeamercolor{palette primary}{fg=UvA_White, bg=UvA_FNWI_Purple}
+
+% font
+\usefonttheme{serif}
+\setbeamerfont{table}{size=\scriptsize}
+\setbeamerfont{caption}{size=\tiny}
+
+
+% metadata
+\title{Distilling BERT: Transfer Dataset Size and Composition Effects}
+\date{\today}
+\author{Steven van de Graaf}
+\institute{\textsc{University of Amsterdam}}
+
+\begin{document}
+    \maketitle
+    \section{Introduction}
+    \begin{frame}{Motivation}
+        \begin{itemize}
+            \item ``ImageNet moment'' for \gls{nlp} thanks to Transformers
+            \item Transformers are getting ever bigger:
+        \end{itemize}
+        \begin{table}[ht!]
+            \scriptsize
+            \centering
+            \begin{tabular}{l | l l r }
+                \toprule
+                \B{Paper} & \B{Date} & \B{Name} & \B{Number of Parameters} \\
+                \midrule
+                \citet{radford2018improving} & 06-2018 & GPT & \num{110000000} \\
+                \citet{devlin2018bert} & 10-2018 & \bertlarge & \num{320000000} \\
+                \citet{radford2019language} & 02-2019 & GPT-2 & \num{1542000000} \\
+                \citet{shoeybi2019megatron} & 09-2019 & Megatron & \num{8300000000} \\
+                \citet{raffel2019exploring} & 10-2019 & T5-11B & \num{11000000000} \\
+                \citet{microsoft2020turing} & 02-2020 & Turing-NLG & \num{17000000000} \\
+                \citet{brown2020language} & 05-2020 & GPT-3 & \num{175000000000} \\
+                \citet{fedus2021switch} & 01-2021 & Switch-C & \num{1571000000000} \\
+                \bottomrule
+            \end{tabular}
+            \caption[Sizes of recent Transformer(-based) architectures]{Sizes of recent Transformer(-based) architectures in terms of the number of parameters.}
+        \end{table}
+    \end{frame}
+    
+    \begin{frame}{Motivation (cont.)}
+        \begin{itemize}
+            \item Increasing size comes at significant costs in terms of \emph{sustainability} and \emph{accessibility}.
+            \item Increasing importance of methods that make \glspl{nn} more efficient (``Green AI'').
+            \item \gls{kd} is one such promising method to ``compress'' \glspl{nn}.
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Knowledge Gap}
+        \begin{itemize}
+            \item In the last two years or so, there have been various efforts to apply \gls{kd} to Transformer-based architectures.
+            \item The resulting ``student networks'' are both \emph{smaller} and \emph{faster}, while still achieving \emph{comparable performance}.
+            \item While promising, this new line of research is still immature, as reflected by the lack of established best-practices when it comes to the various aspects of \gls{kd}.
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Scope}
+        \begin{itemize}
+            \item While the biggest \glspl{nn} (containing hundreds of billions of parameters) stand to gain the most from being compressed, this research focuses its efforts solely on the popular \emph{\bertbase} network by \citet{devlin2018bert}.
+            \item When it comes to what aspects of the \gls{kd} process to investigate, this research has settled on the \emph{transfer dataset} $\dataset_T$ used during pre-training.
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Research Questions}
+        \noindent\begin{tabular}{p{0.075\linewidth} p{0.875\linewidth}}
+        \B{RQ$_1$} & What are the effects of the \emph{size} of the transfer dataset $\dataset_T$ used during pre-training in the Knowledge Distillation process as applied to \bertbase, measured in performance on downstream performance task(s)? \\
+        \addlinespace
+        \B{RQ$_2$} & What are the effects of the \emph{composition} of the transfer dataset $\dataset_T$ used during pre-training in the Knowledge Distillation as applied to \bertbase, measured in performance on downstream performance task(s)?
+    \end{tabular}
+    \end{frame}
+    
+    
+    
+    \section{Background}
+    \begin{frame}{\bertbase}
+        \begin{itemize}
+            \item Almost three years ago, \citet{devlin2018bert} introduced their new language representation \gls{nn} \gls{bert}.
+            \item \gls{bert} is a Transformer-based architecture that uses (only) the \emph{Encoder} stack of the Transformer architecture \citep{vaswani2017attention}.
+            \item \gls{bert} was pre-trained using a \gls{mlm} objective:\\
+            It doesn't take a \mask to figure this out.
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Knowledge Distillation}
+        \begin{itemize}
+            \item First introduced by \citet{bucil2006model} and popularized by \citet{hinton2015distilling}.
+            \item A smaller (untrained) \emph{student network} is trained to mimic a larger, pre-trained \emph{teacher network} by means of \emph{knowledge transfer}.
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Soft target loss}
+        The student network is trained on some \emph{transfer dataset} $\dataset_T$ to minimize a loss function in which the target is the distribution of class probabilities as output by the teacher network (\emph{soft target loss}):
+        \begin{align}
+            \label{eq:soft_target_loss}
+            \mathcal{L}_{\text{soft}} = \loss{\vect{z}_s, \vect{z}_t} &= KL\left( \softmax{\vect{z}_s} || \softmax{\vect{z}_t} \right).
+        \end{align}
+        Advantages:
+        \begin{itemize}
+            \item The data in $\dataset_T$ can be entirely unlabeled.
+            \item Provides a richer signal during training when compared to only using the ground truth label as your target.
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Hard target loss}
+        When some or all of the data in $\dataset_T$ is labeled, \citet{hinton2015distilling} have found it beneficial to train the student network to also predict the ground truth labels $\vect{y}$ (\emph{hard target loss}):
+        \begin{align}
+            \label{eq:hard_target_loss}
+            \mathcal{L}_{\text{hard}} = \loss{\vect{z}_s, \vect{y}} &= \ce{\softmax{\vect{z}_s}, \vect{y}}.
+        \end{align}
+    \end{frame}
+    
+    \begin{frame}{Combined loss function}
+        Combining the loss functions defined in \cref{eq:soft_target_loss,eq:hard_target_loss} yields the following combined loss function:
+        \begin{align}
+            \label{eq:combined_kd_loss}
+            \mathcal{L}_{\text{combined}} &= \loss{\vect{z}_s, \vect{z}_t, \vect{y}}, \nonumber \\
+            &= \alpha \cdot KL\left( \softmax{\vect{z}_s} || \softmax{\vect{z}_t} \right) \nonumber \\
+            &\quad + \beta \cdot \ce{\softmax{\vect{z}_s}, \vect{y}}.
+        \end{align}
+    \end{frame}
+    
+    
+    
+    \section{Related Work}
+    \begin{frame}{Variables}
+        \gls{kd} as described by \citet{hinton2015distilling} provides only a general recipe that leaves much to be specified, such as:
+        \begin{itemize}
+            \item What \gls{nn} architecture(s) do you use?
+            \item What transfer dataset do you use?
+            \item What composition of the combined loss function do you use?
+        \end{itemize}
+    \end{frame}
+        
+    \begin{frame}{Variables (cont.)}
+       For Transformer(-based) architectures specifically, at least one more important variable can be added to the mix:
+        \begin{itemize}
+            \item At what stage (pre-training, fine-tuning or both) is \gls{kd} applied?
+        \end{itemize}
+        
+        
+        The last variable to consider is more generally applicable to all scientific research:
+        \begin{itemize}
+            \item How do you evaluate your approach / method?
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Summary (condensed)}
+        \begin{table}[ht!]
+            \tiny
+            \centering
+            \begin{tabular}{l | l l c l }
+                \toprule
+        \B{Paper} & \B{Teacher network} & \B{Stage} & \B{$\dataset_T$} & \B{Evaluation} \\
+        \midrule
+        \citet{tang2019distilling} & \bertlarge & FT & \redtimes & Subset of GLUE  \\
+        \citet{liu2019improving} & MT-D\gls{nn} & FT & \redtimes & GLUE \\
+        \citet{yang2019model} & \bertbase & FT & \redtimes & DeepQA \\
+        \citet{sun2019patient} & \bertbase & FT & \redtimes & Subset of GLUE \\
+        \citet{jiao2019tinybert} & \bertbase & Both & ``large-scale text corpus'' & GLUE \\
+        \citet{turc2019well} & \bertbase & FT & TBC + EnWiki & Subset of GLUE \\
+        \citet{sanh2019distilbert} & \bertbase & PT & TBC + EnWiki & GLUE \& SQuAD \\
+        \citet{sun2020mobilebert} & IB-\bertlarge & PT & TBC + EnWiki & GLUE \& SQuAD \\
+        \bottomrule
+            \end{tabular}
+            \caption{Condensed summary of related works along the questions posed previously.}
+        \end{table} 
+    \end{frame}
+    
+    
+    
+    \section{Experimental Design}
+    \begin{frame}{\gls{nn} Architecture}
+        Following the examples of \citet{sun2019patient,sanh2019distilbert}, we use \emph{\bertbase} for our \emph{teacher network} and a shallower version of it, using 6 layers instead of 12, for our \emph{student network}, which we refer to as \emph{\bertstudent}.
+
+        \begin{table}[h]
+            \scriptsize
+            \centering
+            \begin{tabular}{l|c|c|c}
+                \toprule
+                \B{Network} & \B{$\#P$} & \B{Size-on-disk} & \B{Inference time} \\
+                \midrule
+                \bertbase & \SI{109.5}{\mega\nothing} ($1.0 \times$) & \SI{417}{\mega\byte} ($1.0 \times$) & \SI{1.47}{\second} ($1.0 \times$) \\
+                \bertstudent & \SI{66.4}{\mega\nothing} ($1.65 \times$) & \SI{253}{\mega\byte} ($1.65 \times$) & \SI{0.80}{\second} ($1.83 \times$) \\
+                \bottomrule
+            \end{tabular}
+            \caption{Comparison of network size (in $\#P$ and size-on-disk) and inference time (in s) between our teacher network, \bertbase, and our student network, \bertstudent.}
+            \label{tab:network_comparison}
+        \end{table}
+    \end{frame}
+    
+    \begin{frame}{Pre-training}
+        \begin{itemize}
+            \item Like \citet{jiao2019tinybert,sanh2019distilbert,sun2020mobilebert}, we apply \gls{kd} during pre-training.
+            \item For our composite loss function, we combine the hard target loss and soft target loss seen previously, with a cosine embedding loss that leverages the knowledge encoded in intermediate layers:
+        \end{itemize}
+        
+        \begin{align}
+            \label{eq:our_combined_loss}
+            \mathcal{L} &= \alpha_\text{soft} \cdot \mathcal{L}_{\text{soft}} + \alpha_\text{hard} \cdot \mathcal{L}_{\text{hard}} + \alpha_\text{cos} \cdot \mathcal{L}_{\text{cos}}, \\
+            &= \alpha_\text{soft} KL\left( \softmax{\vect{z}_s} || \softmax{\vect{z}_t} \right) \nonumber \\
+            &\quad+ \alpha_\text{hard} \cdot \ce{\softmax{\vect{z}_s}, \vect{y}} \nonumber \\
+            &\quad+ \alpha_\text{cos} \cdot \left( 1 - \cos{\left( \hvect_s, \hvect_t \right)} \right). \nonumber
+        \end{align}
+    \end{frame}
+    
+    \begin{frame}{Data}
+        Following the pre-training procedures of both \bertbase \citep{devlin2018bert} and DistilBERT \citep{sanh2019distilbert}, we use a concatenation of (a replica of) the \gls{tbc} dataset \citep{zhu2015aligning} and \emph{English Wikipedia} for our composite pre-training corpus.
+    \end{frame}
+    
+    \begin{frame}{Toronto BookCorpus dataset}
+        \begin{itemize}
+            \item The \gls{tbc} dataset \citep{zhu2015aligning} is no longer publicly available.
+            \item \href{https://www.smashwords.com/}{Smashwords} still exists, however.
+            \item Following the procedure of \citet{graaf2019replicating}, we have developed and released \href{https://github.com/sgraaf/Replicate-Toronto-BookCorpus}{\emph{Replicate Toronto BookCorpus}}, a collection of scripts that achieve the following 3 steps:
+            \begin{enumerate}
+            \item Finding those books that meet our criteria.
+            \item Downloading these books.
+            \item Pre-processing these books.
+        \end{enumerate}
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Toronto BookCorpus dataset (cont.)}
+        Following these steps, we were able to create a faithful replica of the \gls{tbc} dataset:
+
+        \begin{table}[ht]
+            \scriptsize
+            \centering
+            \begin{tabular}{l|c|c|c|c|c}
+                \toprule
+                \B{Dataset} & \B{Size} & \B{N\textsuperscript{\underline{o}} sentences} & \B{N\textsuperscript{\underline{o}} words} & \B{mean w.p.s.} & \B{median w.p.s.} \\
+                \midrule
+                \gls{tbc} \citep{zhu2015aligning} & \SI{4.7}{\giga\byte} & \SI{74.0}{\mega\nothing} & \SI{984.8}{\mega\nothing} & $13.3$ & $11$ \\
+                \midrule
+                \gls{tbc} replica & \SI{5.1}{\giga\byte} & \SI{65.4}{\mega\nothing} & \SI{897.1}{\mega\nothing} & $13.7$ & $11$ \\
+                \bottomrule
+            \end{tabular}
+            \caption{Comparison of datasets in terms of size and other important statistics. ``w.p.s.'' stands for ``words per sentence''.}
+        \end{table}
+    \end{frame}
+    
+    \begin{frame}{English Wikipedia}
+        \begin{itemize}
+            \item While used at least equally frequently in \gls{lm} pre-training, English Wikipedia also requires much pre-processing.
+            \item For this, we follow the procedure of \citet{graaf2019preprocessing}:
+            \begin{enumerate}
+                \item Download the latest ``dump'' of all pages and articles of English Wikipedia.
+                \item Extract only the text passages (ignoring any lists, tables and headers).
+                \item Tokenize the sentences.
+                \item Concatenate all pages and articles into a single text-file.
+            \end{enumerate}
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{$\corpus$}
+        \begin{itemize}
+            \item What we refer to as ``our corpus'' or $\corpus$ is now a concatenation of our \gls{tbc} replica and English Wikipedia.
+            \item $\corpus$ consists of \SI{109.3}{\mega\nothing} \emph{sequences} or \SI{4.0}{\billion} \emph{tokens} in total.
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Baselines}
+        In order to verify the significance of our results, we compare the performance of \bertstudent to two baselines: 
+        \begin{enumerate}
+            \item \B{\bertbase} \citep{devlin2018bert}
+            \item \B{DistilBERT} \citep{sanh2019distilbert}
+        \end{enumerate}
+    \end{frame}
+    
+    
+    
+    \section{Results}
+    \subsection{Size of Transfer Dataset $\dataset_T$}
+    \begin{frame}{Methods}
+        \begin{itemize}
+            \item We take three random samples (without replacement) from our corpus $\corpus$ using three different sample sizes in order to obtain three differently sized transfer datasets $\dataset_T^N$.
+            \item The sample sizes used for the random sampling from our corpus are proportional to its size (\SI{109.3}{\mega\nothing} sequences or \SI{4.0}{\billion} tokens) by different orders of magnitude: 
+            \begin{enumerate}
+                \item We take a first random sample that is $10$\% of its size (\SI{10.9}{\mega\nothing} sequences or \SI{402.6}{\mega\nothing} tokens)
+                \item We take a second random sample that is $1$\% of its size (\SI{1.1}{\mega\nothing} sequences or \SI{40.3}{\mega\nothing} tokens)
+                \item We take a third and final random sample that is $0.1$\% of its size (\SI{109.4}{\kilo\nothing} sequences or \SI{4.0}{\mega\nothing} tokens)
+            \end{enumerate}
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Methods (cont.)}
+        \begin{table}[ht!]
+            \scriptsize
+            \centering
+            \begin{tabular}{l|c|c|c}
+                \toprule
+                \B{Dataset} & \B{Size} & \B{N\textsuperscript{\underline{o}} sequences} & \B{N\textsuperscript{\underline{o}} tokens} \\
+                \midrule
+                $\corpus$ & \SI{20.0}{\giga\byte} & \SI{109.3}{\mega\nothing} & \SI{4.0}{\billion} \\
+                \midrule
+                $\dataset_T^{10\%}$ & \SI{2.0}{\giga\byte} & \SI{10.9}{\mega\nothing} & \SI{402.6}{\mega\nothing} \\
+                \midrule
+                $\dataset_T^{1\%}$ & \SI{204.8}{\mega\byte} & \SI{1.1}{\mega\nothing} & \SI{40.3}{\mega\nothing} \\
+                \midrule
+                $\dataset_T^{0.1\%}$ & \SI{20.6}{\mega\byte} & \SI{109.4}{\kilo\nothing} & \SI{4.0}{\mega\nothing} \\
+                \bottomrule
+            \end{tabular}
+            \caption{Comparison between our corpus and our transfer datasets (which are differently sized random samples of our corpus).}
+        \end{table}
+    \end{frame}
+    
+    \begin{frame}{Results - GLUE}
+        \begin{table}[ht!]
+            \scriptsize
+            \centering
+            \begin{tabular}{l c | c }
+                \toprule
+                \B{Network} & \B{Transfer dataset} & \B{Score}  \\
+                \midrule
+                \multicolumn{3}{l}{\emph{Ours:}} \\
+                \multirow{4}{*}{\bertstudent} & $\dataset_T^{10\%}$ & \B{72.5} \\
+                & $\dataset_T^{1\%}$ & \B{72.4} \\
+                & $\dataset_T^{0.1\%}$ & \B{70.0} \\
+                % & $\dataset_T^0$ & \B{60.2} & 0.0 & 79.1 & 75.7 & 85.3 & 86.7 & 54.2 & 89.3 & 15.1 & 56.3 \\
+                \midrule
+                \multicolumn{3}{l}{\emph{Baselines:}} \\
+                \multicolumn{2}{l|}{\bertbase \citep{devlin2018bert}} & \B{74.9} \\
+                \multicolumn{2}{l|}{DistilBERT \citep{sanh2019distilbert}} & \B{74.3} \\
+                \bottomrule 
+            \end{tabular}
+            \caption{Comparison of performance on the GLUE benchmark using transfer datasets of various sizes. Results of \bertbase and DistilBERT as reported by \citet{sanh2019distilbert}.}
+        \end{table}
+    \end{frame}
+    
+    \begin{frame}{Results - SQuAD}
+        \begin{table}[ht!]
+            \scriptsize
+            \centering
+            \begin{tabular}{l c | c c }
+                \toprule
+                \multirow{2}{*}{\B{Network}} & \multirow{2}{*}{\B{Transfer dataset}} & \multicolumn{2}{c}{\B{Score}} \\
+                & & EM & \B{F1} \\
+                \midrule
+                \multicolumn{4}{l}{\emph{Ours:}} \\
+                \multirow{4}{*}{\bertstudent} & $\dataset_T^{10\%}$ & 56.9 & \B{68.5} \\
+                & $\dataset_T^{1\%}$ & 54.7 & \B{66.4} \\
+                & $\dataset_T^{0.1\%}$ & 45.0 & \B{56.5} \\
+                % & $\dataset_T^0$ & 42.6 & 54.9 \\
+                \midrule
+                \multicolumn{4}{l}{\emph{Baselines:}} \\
+                \multicolumn{2}{l|}{\bertbase \citep{devlin2018bert}} & 73.9 & \B{82.3} \\
+                \multicolumn{2}{l|}{DistilBERT \citep{sanh2019distilbert}} & 69.6 & \B{78.7} \\
+                \bottomrule
+            \end{tabular}
+            \caption{Comparison of performance on SQuAD using transfer datasets of various sizes. Results of \bertbase and DistilBERT as reported by \citet{sanh2019distilbert}.}
+            \label{tab:amount_of_data_squad_results}
+        \end{table}
+    \end{frame}
+    
+    \begin{frame}{Results}
+        \begin{figure}[ht!]
+            \begin{center}
+                \input{figures/07-results/amount_of_data_barplot.pgf}
+            \end{center}
+            \caption{Plot of performance of \bertstudent on GLUE and SQuAD using transfer datasets of various sizes.}
+            \label{fig:amount_of_data_barplot}
+        \end{figure}
+    \end{frame}
+    
+    
+    \subsection{Composition of Transfer Dataset $\dataset_T$}
+    \begin{frame}{Methods}
+        We create two new transfer datasets $\dataset_T$ of different compositions by adding ``noise'' to $\dataset_T^{10\%}$:
+        \begin{enumerate}
+            \item The first new transfer dataset we create is an randomization of $\dataset_T^{10\%}$, wherein each sequence of tokens in $\dataset_T^{10\%}$ is randomized (i.e. shuffled). This dataset is labeled as $\dataset_T^{\text{Rand.}}$.
+            \item The second new transfer dataset we create consists of entirely generated data (labeled as $\dataset_T^{\text{Gen.}}$). For this, we first compute two statistics of $\dataset_T^{10\%}$, which are then used to generate completely new sequences.
+        \end{enumerate}
+    \end{frame}
+    
+    \begin{frame}{Methods (cont.)}
+        \begin{table}[ht!]
+            \scriptsize
+            \centering
+            \begin{tabular}{c|c|c|c}
+                \toprule
+                \B{Transfer dataset} & \B{Size} & \B{N\textsuperscript{\underline{o}} sequences} & \B{N\textsuperscript{\underline{o}} tokens} \\
+                \midrule
+                $\dataset_T^{10\%}$ & \SI{2.0}{\giga\byte} & \SI{10.9}{\mega\nothing} & \SI{402.6}{\mega\nothing} \\
+                \midrule
+                $\dataset_T^{\text{Rand.}}$ & \SI{2.0}{\giga\byte} & \SI{10.9}{\mega\nothing} & \SI{402.6}{\mega\nothing} \\
+                \midrule
+                $\dataset_T^{\text{Gen.}}$ & \SI{2.0}{\giga\byte} & \SI{10.9}{\mega\nothing} & \SI{402.6}{\mega\nothing} \\
+                \bottomrule
+            \end{tabular}
+            \caption{Comparison of the transfer datasets used in the current experiment (which are of different compositions).}
+        \end{table}
+    \end{frame}
+    
+    \begin{frame}{Results - GLUE}
+        \begin{table}[ht!]
+            \scriptsize
+            \centering
+            \begin{tabular}{c | c }
+                \toprule
+                \B{Transfer dataset} & \B{Score}  \\
+                \midrule
+                $\dataset_T^{10\%}$ & \B{72.5} \\
+                $\dataset_T^{\text{Rand.}}$ & \B{64.8} \\
+                $\dataset_T^{\text{Gen.}}$ & \B{59.2} \\
+                \bottomrule 
+            \end{tabular}
+            \caption{Comparison of performance on the GLUE benchmark using transfer datasets of various compositions.}
+        \end{table}
+    \end{frame}
+    
+    \begin{frame}{Results - SQuAD}
+        \begin{table}[ht!]
+            \scriptsize
+            \centering
+            \begin{tabular}{c | c c }
+                \toprule
+                \multirow{2}{*}{\B{Transfer dataset}} & \multicolumn{2}{c}{\B{Score}} \\
+                & EM & \B{F1} \\
+                \midrule
+                $\dataset_T^{10\%}$ & 56.9 & \B{68.5} \\
+                $\dataset_T^{\text{Rand.}}$ & 8.7 & \B{16.2} \\
+                $\dataset_T^{\text{Gen.}}$ &  27.0 & \B{37.3} \\
+                \bottomrule
+            \end{tabular}
+            \caption{Comparison of performance on SQuAD using transfer datasets of various compositions.}
+        \end{table}
+    \end{frame}
+    
+    \begin{frame}{Results}
+        \begin{figure}
+            \begin{center}
+                \input{figures/07-results/type_of_data_barplot.pgf}
+            \end{center}
+            \caption{Plot of performance of \bertstudent on GLUE and SQuAD using transfer datasets of various compositions.}
+        \end{figure}
+    \end{frame}
+    
+    \section{Conclusion}
+    \begin{frame}{Summary of results}
+        \begin{itemize}
+            \item When it comes to the \emph{size} of the transfer dataset $\dataset_T$, we observed competitive performance on GLUE and acceptable performance on SQuAD when a transfer dataset is used of ``only'' $\sim \SI{100}{\kilo\nothing}$ sequences or $\sim \SI{4}{\mega\nothing}$ tokens. Whereas performance on GLUE does not seem to benefit much from using a larger transfer dataset, performance on SQuAD does. 
+            \item With respect to the \emph{composition} of the transfer dataset $\dataset_T$, we observed diminishing (though still acceptable) performance on GLUE and poor performance on SQuAD when a transfer dataset is used that does not consist of proper \gls{nl} (i.e. randomized and/or generated) data. More surprisingly, we observe diminishing performance on GLUE when a less ``informative'' transfer dataset is used for \gls{kd}, whereas for SQuAD, we observe an increase in performance.
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Answer to Research Question 1}
+        \begin{itemize}
+            \item The general effect on downstream task performance of using a smaller transfer dataset $\dataset_T$ to distill the knowledge of \bertbase into \bertstudent is a \emph{slight decrease} in performance.
+            \item We consider the decrease in performance on GLUE to be marginal, especially if you also weigh the costs (both financially and environmentally, as well as temporally).
+            \item Performance on SQuAD benefits significantly more from using a (relatively) larger transfer dataset $\dataset_T$ during pre-training in the \gls{kd} process.
+        \end{itemize}
+    \end{frame}
+    
+    \begin{frame}{Answer to Research Question 2}
+        \begin{itemize}
+            \item The general effect on downstream task performance of using a transfer dataset $\dataset_T$ composed of non \gls{nl} data to distill the knowledge of \bertbase into \bertstudent is a \emph{significant decrease} in performance.
+            \item This is the case for GLUE (though performance is still acceptable), but even more so for SQuAD. This result makes intuitive sense, as you would expect that (pre-)training with less informative data would yield a less informed \gls{nn}.
+            \item Nonetheless, this answer is by no means conclusive, as there are still aspects unexplored, which we leave for future work. Moreover, for low-resource languages, randomizing and/or generating sequences might still prove worthwhile.
+        \end{itemize}
+    \end{frame}
+
+
+    % references
+    \renewcommand{\bibsection}{}
+    \renewcommand*{\bibfont}{\tiny}
+    \DeclareRobustCommand{\VAN}[3]{#3}
+    \begin{frame}[allowframebreaks]{References}
+        \bibliography{references}
+        \bibliographystyle{apalike}
+    \end{frame}
+
+
+
+    % end frame
+    \metroset{numbering=none}
+    \begin{frame}[standout]
+    \end{frame}
+\end{document}
